@@ -32,14 +32,18 @@ function draw(t, kind, stamp) {
   vals.forEach((v, i) => byPrice.set(v, [...(byPrice.get(v) || []), NAMES[i]]));
   const labels = [...byPrice].map(([y, n]) => ({ t: n.join(' / '), y }));
   const lines = [...byPrice.keys()].map(y => ({ y1: y, y2: y }));
-  const rows = [...byPrice].sort((a, b) => b[0] - a[0]).map(([y, n]) => [n.join(' / '), String(y), `${(((y / PRICES[t]) - 1) * 100).toFixed(2)}%`]);
-  const cells = [['Key Levels', 'Value', 'Distance to Spot'], ...rows].flatMap((row, r) => row.map((tx, c) => ({ t: tx, row: r, col: c })));
-  // the timestamp box, sharing row/col numbers with the table (no table id), the worst case
-  if (stamp) cells.push({ t: `${kind === 'eod' ? 'End of Day Levels' : 'Intraday Levels'}\nLast Update: ${stamp}`, row: 1, col: 0 });
+  // "Distance to Spot" moves with every tick, as on a live chart
+  const spot = PRICES[t] * (1 + (Math.random() - 0.5) / 500);
+  const rows = [...byPrice].sort((a, b) => b[0] - a[0]).map(([y, n]) => [n.join(' / '), String(y), `${(((y / spot) - 1) * 100).toFixed(2)}%`]);
+  const cells = [['Key Levels', 'Value', 'Distance to Spot'], ...rows].flatMap((row, r) => row.map((tx, c) => ({ t: tx, row: r, col: c, tid: 2 })));
+  // the timestamp box: its own table (tid 1), as on real TradingView
+  if (stamp) cells.push({ t: `${kind === 'eod' ? 'End of Day Levels' : 'Intraday Levels'}\nLast Update: ${stamp}`, row: 0, col: 0, tid: 1 });
   return { labels, lines, cells };
 }
 
 const coll = arr => ({ get: () => ({ get: () => ({ _primitivesDataById: new Map(arr.map((v, i) => [i, v])) }) }) });
+// table cells: one level shallower, and each cell carries its table id (as on real TradingView)
+const cellColl = arr => ({ get: () => ({ _primitivesDataById: new Map(arr.map((v, i) => [i, v])) }) });
 
 export function makeTab(opts = {}) {
   const st = {
@@ -60,10 +64,10 @@ export function makeTab(opts = {}) {
       properties: () => ({ visible: { value: () => st.visible[kind], setValue: v => { st.visible[kind] = v; } } }),
       get _graphics() {
         const t = ROOT_TO_T[st.drawn];
-        if (!st.visible[kind] || !t) return { _primitivesCollection: { dwglabels: coll([]), dwglines: coll([]), dwgtablecells: coll([]) } };
-        if (st.noLevels.has(t)) return { _primitivesCollection: { dwglabels: coll([{ t: 'No Levels for this Ticker', y: PRICES[t] }]), dwglines: coll([]), dwgtablecells: coll([]) } };
+        if (!st.visible[kind] || !t) return { _primitivesCollection: { dwglabels: coll([]), dwglines: coll([]), dwgtablecells: cellColl([]) } };
+        if (st.noLevels.has(t)) return { _primitivesCollection: { dwglabels: coll([{ t: 'No Levels for this Ticker', y: PRICES[t] }]), dwglines: coll([]), dwgtablecells: cellColl([]) } };
         const d = draw(t, kind, st.stamps[kind]);
-        return { _primitivesCollection: { dwglabels: coll(d.labels), dwglines: coll(d.lines), dwgtablecells: coll(d.cells) } };
+        return { _primitivesCollection: { dwglabels: coll(d.labels), dwglines: coll(d.lines), dwgtablecells: cellColl(d.cells) } };
       },
     };
   };

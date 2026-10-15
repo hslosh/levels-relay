@@ -30,7 +30,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VERSION = '1.2.2';
+const VERSION = '1.2.3';
 
 // ---------------------------------------------------------------- config
 const DEFAULTS = {
@@ -257,7 +257,9 @@ const READ_JS = (match) => `(function(){
     var hay = (name + ' ' + title).toLowerCase();
     if (match.length && !match.some(function(m){ return hay.indexOf(m) >= 0; })) return;
     var g = s._graphics, pc = g && g._primitivesCollection;
-    function coll(a, b){ var o = []; try { var c = pc[a].get(b).get(false);
+    // labels/lines sit one level deeper (.get(false)) than table cells on real TradingView
+    function coll(a, b){ var o = []; try { var c = pc[a].get(b);
+      if (c && !c._primitivesDataById && c.get) c = c.get(false);
       c._primitivesDataById.forEach(function(v){ o.push(v); }); } catch(e) {} return o; }
     var vis = true; try { vis = s.properties().visible.value(); } catch(e) {}
     var rawCells = coll('dwgtablecells','tableCells');
@@ -288,6 +290,7 @@ const VERSIONS_JS = sids => `(async function(){ var out = {}, sids = ${JSON.stri
   } catch (e) {} }
   return out; })()`;
 
+const mqMatch = cfg => ['menthorq', cfg.studies.eod, cfg.studies.intraday];
 const symbolRoot = s => String(s || '').split(':').pop();
 
 async function setSymbol(cdp, sym) {
@@ -361,7 +364,8 @@ function parseSession(study, aliases = {}) {
 }
 
 const EMPTY = { values: new Array(19).fill(0), found: 0, source: '-', stamp: null, noLevels: false, converted: false, unknown: [], crossChecked: 0, disagree: [] };
-const snapKey = snap => JSON.stringify(snap.studies.map(s => [s.labels.map(l => `${l.t}@${l.y}`), s.cells.map(c => c.t)]));
+// What the levels are, ignoring "Distance to Spot" (that column changes with every tick).
+const snapKey = snap => JSON.stringify(snap.studies.map(s => [s.labels.map(l => `${l.t}@${l.y}`), s.cells.filter(c => c.c <= 1).map(c => c.t)]));
 const pickStudy = (snap, cfg, k) => snap.studies.find(s => `${s.name} ${s.title}`.toLowerCase().includes(cfg.studies[k].toLowerCase()));
 
 async function readStable(cdp, match, settleMs, prevKey) {
@@ -763,7 +767,7 @@ async function cmdTabs(cfg) {
     let c;
     try {
       c = await openTarget(t, cfg.timeout_seconds * 1000);
-      const s = await c.evaluate(READ_JS(['menthorq']));
+      const s = await c.evaluate(READ_JS(mqMatch(cfg)));
       console.log(`  ${id === cfg.layout ? '→' : ' '} ${id.padEnd(10)} "${s.layoutName || 'unnamed'}" · ${s.symbol} · MenthorQ indicators: ${s.studies.length}${s.frozen ? ' · FROZEN' : ''}`);
     } catch (e) { console.log(`    ${id.padEnd(10)} (couldn't read it: ${e.message})`); }
     finally { c?.close(); }
@@ -788,7 +792,7 @@ async function cmdLearn(cfg, flags) {
     const withMQ = [];
     for (const t of targets) {
       const c = await openTarget(t, cfg.timeout_seconds * 1000);
-      try { if ((await c.evaluate(READ_JS(['menthorq']))).studies.length) withMQ.push(t); } catch { /* */ } finally { c.close(); }
+      try { if ((await c.evaluate(READ_JS(mqMatch(cfg)))).studies.length) withMQ.push(t); } catch { /* */ } finally { c.close(); }
     }
     if (withMQ.length !== 1) throw new Error(withMQ.length ? 'More than one tab has MenthorQ on it. Run "tabs" and set "layout" in config.json first.'
       : 'No open tab has a MenthorQ indicator. Open the tab with MenthorQ Gamma Levels EOD + Intraday and run learn again.');
@@ -797,15 +801,16 @@ async function cmdLearn(cfg, flags) {
   }
   const cdp = await openTarget(target, cfg.timeout_seconds * 1000);
   let snap;
-  try { snap = await cdp.evaluate(READ_JS(['menthorq'])); } finally { cdp.close(); }
+  try { snap = await cdp.evaluate(READ_JS(mqMatch(cfg))); } finally { cdp.close(); }
   const tabId = layoutIdOf(target.url);
   if (!tabId) { say(false, 'This tab\'s layout has never been saved, so it has no id yet.', 'In TradingView, save the layout with a name (e.g. "levels-relay"), then run learn again.'); return; }
   info(`Levels tab: ${tabId} "${snap.layoutName || 'unnamed'}" on ${snap.symbol}${cfg.layout ? '' : ' (not set in config.json yet)'}`);
   if (snap.frozen) { say(false, 'This TradingView shows "Session disconnected".', 'Click Connect in TradingView and run learn again.'); return; }
 
   // 2. the two indicators
-  const eod = snap.studies.find(s => /end of day|\beod\b/i.test(`${s.name} ${s.title}`));
-  const intra = snap.studies.find(s => /intraday/i.test(`${s.name} ${s.title}`));
+  const has = (s, k) => `${s.name} ${s.title}`.toLowerCase().includes(cfg.studies[k].toLowerCase());
+  const eod = snap.studies.find(s => has(s, 'eod')) || snap.studies.find(s => /end of day|\beod\b/i.test(`${s.name} ${s.title}`));
+  const intra = snap.studies.find(s => has(s, 'intraday')) || snap.studies.find(s => /intraday/i.test(`${s.name} ${s.title}`));
   say(!!eod, `EOD indicator: ${eod ? `"${eod.name}"` : 'not found'}`, 'Add "MenthorQ Gamma Levels EOD" (Indicators → Invite-only scripts) to this tab.');
   say(!!intra, `Intraday indicator: ${intra ? `"${intra.name}"` : 'not found'}`, 'Add "MenthorQ Gamma Levels Intraday" to this tab.');
   for (const [k, s] of [['eod', eod], ['intraday', intra]]) {

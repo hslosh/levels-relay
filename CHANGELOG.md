@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.3
+First run on real TradingView (with stand-in indicators that draw what MenthorQ draws). Fixed three things the fake TradingView couldn't show:
+- **Tables were invisible.** TradingView stores table cells one level shallower than labels and lines, so the Key Levels table and the "Last Update" box were never read. They are now. Every cell also carries its table id, so the timestamp box can't mix with table rows.
+- **Busy markets never "finished loading."** The "Distance to Spot" column changes with every tick, so a fast market like NQ never looked settled. That column is now ignored when waiting for a market to load.
+- `tabs` and `learn` now also find indicators by the names in `config.json`, not only by the word "MenthorQ" (in case MenthorQ renames them).
+
+The fake TradingView now matches the real one (cell layout, live-ticking distance column). Verified on real TradingView: `learn`, `learn --markets`, `read`, `post` (all 5 markets, 38/38 numbers exact), and a duplicate `post` refused.
+
 ## 1.2.2
 Built around how MenthorQ actually behaves (see `docs/MENTHORQ.md`) and around not getting in the way of your trading.
 
