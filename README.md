@@ -1,6 +1,6 @@
 # levels-relay
 
-**Post exact MenthorQ option levels to Discord without screenshots or AI.**
+**Posts exact MenthorQ option levels to Discord without screenshots or AI.**
 
 `levels-relay` reads the MenthorQ levels **straight off your TradingView chart**, exactly as MenthorQ draws them. It turns them into the ready-to-paste number strings the indicator uses, for **NQ, ES, GC, CL and SI**, and can post them to a Discord channel on a schedule. Members copy one line per market into the indicator, and that's it.
 
