@@ -1,6 +1,8 @@
 # Changelog
 
 ## 1.2.0
+- Windows auto-start uses the Startup folder (no administrator rights needed); the watcher runs minimized and logs to `output/watch.log`.
+- README: "First-time setup: what you'll see" lists every one-time prompt (installer, SmartScreen, Gatekeeper).
 - **Fully hands-off:** `watch` now posts as soon as MenthorQ's "Last Update" stamp changes (`mode: "update"`, the default); `mode: "schedule"` keeps fixed times.
 - Self-healing: starts TradingView if it's closed (`start_tradingview`, default on). Optionally restarts it to take the session back from another device (`take_back_session`, default **off** because it bumps that device). It never reloads the page, which can log TradingView out.
 - Failures post a ⚠️ notice to **#modlog** (`modlog_webhook_url`) and never to the levels channel; without one, they go to `output/failures.log`.

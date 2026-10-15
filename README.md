@@ -19,6 +19,22 @@ ES
 
 ---
 
+## First-time setup: what you'll see
+
+If you've never used Node.js or run scripts on this computer, expect a few one-time prompts. All of them are normal:
+
+| When | What you'll see | What to do |
+|---|---|---|
+| Installing Node.js | A normal installer. Windows asks *"Do you want to allow this app to make changes?"*; a Mac asks for your password | Yes / enter password. Default options are fine |
+| Getting the files | GitHub → green **Code** button → **Download ZIP**, then unzip it somewhere permanent (e.g. Documents) | Don't run it from inside the zip or your Downloads folder |
+| Windows: first double-click on a `.bat` | Blue *"Windows protected your PC"* (SmartScreen), because the file came from the internet | **More info → Run anyway** (once per file) |
+| Mac: first double-click on a `.command` | *"cannot be opened because it is from an unidentified developer"* | **Right-click → Open → Open** (once per file), or have Claude clear it for you |
+| Mac: first run in Terminal | *"Terminal would like to control…"* or similar | **Allow** |
+| Mac: after the auto-start script | A *"Background Items Added"* notification | Nothing; that's the watcher |
+| Using Claude to set it up | Claude asks before running each command | Approve them. Each one is explained |
+
+Nothing needs administrator rights except installing Node.js itself. The tool never asks for your TradingView, Discord or MenthorQ password.
+
 ## Set it up with Claude (recommended)
 
 If you have [Claude Code](https://claude.com/claude-code) or the Claude desktop app, open this folder and say:
@@ -65,7 +81,7 @@ Prefer fixed times instead? Set `"mode": "schedule"` and it posts at `schedule_e
 |---|---|
 | Post right now | double-click `run.bat` / `run.command` |
 | Post automatically | leave `watch.bat` / `watch.command` running: it posts whenever MenthorQ updates (see above) |
-| Start automatically when you log in | run `install-autostart.bat` (Windows) or `install-autostart.command` (Mac) once |
+| Start automatically when you log in | run `install-autostart.bat` (Windows, no admin rights needed) or `install-autostart.command` (Mac) once |
 | Read without posting | `node levels-relay.mjs read` |
 | Is everything OK? | `node levels-relay.mjs status` (live or frozen, latest MenthorQ update) |
 
