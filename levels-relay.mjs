@@ -49,9 +49,11 @@ const DEFAULTS = {
   mode: 'update',
   update_windows_et: [['07:30', '11:30'], ['19:00', '23:00']],
   update_check_minutes: 3,
-  // Let the tool start TradingView if it's closed, and restart it to take the
-  // session back when another device has it (the chart is frozen otherwise).
-  manage_tradingview: true,
+  // Start TradingView (with the debug port) if it's closed. Harmless.
+  start_tradingview: true,
+  // Restart TradingView to take the session back when another device (phone,
+  // laptop) has it. Bumps that device for about a minute, so it's opt-in.
+  take_back_session: false,
   // Where failures are reported. Empty = the main webhook.
   alert_webhook_url: '',
   settle_seconds: 25,
@@ -64,6 +66,7 @@ function loadConfig() {
     try { user = JSON.parse(readFileSync(p, 'utf8')); }
     catch (e) { throw new Error(`config.json isn't valid JSON (${e.message}). Compare it with config.example.json.`); }
   }
+  if ('manage_tradingview' in user && !('take_back_session' in user)) user.take_back_session = !!user.manage_tradingview;
   return { ...DEFAULTS, ...user, symbols: { ...DEFAULTS.symbols, ...(user.symbols || {}) },
            studies: { ...DEFAULTS.studies, ...(user.studies || {}) } };
 }
@@ -352,7 +355,7 @@ async function ensureTradingView(cfg, log = console.log) {
   let reachable = false;
   try { reachable = (await cdpTargets(cfg.port)).length > 0; } catch { reachable = false; }
   if (!reachable) {
-    if (!cfg.manage_tradingview) throw new Error('TradingView isn\'t reachable on the debug port, and manage_tradingview is off.');
+    if (!cfg.start_tradingview) throw new Error('TradingView isn\'t reachable on the debug port, and start_tradingview is off.');
     if (tvRunning()) { log('  TradingView is running without the debug port: restarting it'); tvKill(); await sleep(4000); }
     else log('  TradingView is closed: starting it');
     tvLaunch();
@@ -362,7 +365,7 @@ async function ensureTradingView(cfg, log = console.log) {
   const frozen = await cdp.evaluate("((document.body && document.body.innerText) || '').indexOf('Session disconnected') >= 0");
   cdp.close();
   if (!frozen) return;
-  if (!cfg.manage_tradingview) throw new Error('The chart shows "Session disconnected" (another device has the session).');
+  if (!cfg.take_back_session) throw new Error('the chart shows "Session disconnected" because another device (phone/laptop) has the TradingView session. Click Connect on this computer, or set take_back_session to true to let the tool do it.');
   log('  chart is frozen (another device has the session): restarting TradingView to take it back');
   tvKill(); await sleep(4000); tvLaunch();
   if (!(await waitForChart(cfg))) throw new Error('TradingView did not come back after the restart.');
@@ -412,7 +415,7 @@ async function cmdStatus(cfg) {
   cdp.close();
   console.log(`Chart: ${snap.symbol} · ${snap.frozen ? 'FROZEN (Session disconnected)' : 'live'} · MenthorQ indicators: ${snap.studies.length}`);
   console.log(`Last update stamp(s): ${snap.frozen ? '(chart frozen)' : (await currentStamp(cfg)) || 'none found'}`);
-  console.log(`Mode: ${cfg.mode} · manage_tradingview: ${cfg.manage_tradingview} · webhook set: ${!!cfg.webhook_url}`);
+  console.log(`Mode: ${cfg.mode} · start_tradingview: ${cfg.start_tradingview} · take_back_session: ${cfg.take_back_session} · webhook set: ${!!cfg.webhook_url}`);
 }
 
 async function cmdDump(cfg) {

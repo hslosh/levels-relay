@@ -2,7 +2,7 @@
 
 ## 1.2.0
 - **Fully hands-off:** `watch` now posts as soon as MenthorQ's "Last Update" stamp changes (`mode: "update"`, the default); `mode: "schedule"` keeps fixed times.
-- Self-healing: starts TradingView if it's closed and restarts it to take the session back from another device (`manage_tradingview`). It never reloads the page, which can log TradingView out.
+- Self-healing: starts TradingView if it's closed (`start_tradingview`, default on). Optionally restarts it to take the session back from another device (`take_back_session`, default **off** because it bumps that device). It never reloads the page, which can log TradingView out.
 - Failures post a ⚠️ notice to the channel (or `alert_webhook_url`).
 - `status` command. The Mac auto-start keeps the Mac awake while the watcher runs.
 

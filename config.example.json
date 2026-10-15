@@ -8,7 +8,8 @@
   "update_check_minutes": 3,
   "schedule_et": ["08:05", "20:05"],
 
-  "manage_tradingview": true,
+  "start_tradingview": true,
+  "take_back_session": false,
 
   "studies": {
     "eod": "MenthorQ Gamma Levels EOD",

@@ -55,9 +55,9 @@ For posts that keep coming while you're away from the desk:
 2. **Run the auto-start once:** `install-autostart.bat` (Windows) or `install-autostart.command` (Mac). The watcher then starts at every login.
 3. **That's it.** With the default settings, the watcher:
    - checks the MenthorQ **"Last Update"** stamp every 3 minutes, 7:30–11:30 AM and 7:00–11:00 PM ET, and **posts as soon as new levels appear**;
-   - **starts TradingView** with the debug port if it's closed;
-   - **restarts TradingView to take the session back** if you opened TradingView on your phone or another computer (otherwise the chart freezes). This bumps the other device for about a minute; set `manage_tradingview` to `false` if you'd rather it just report the problem;
-   - **posts a ⚠️ message** to the channel (or to `alert_webhook_url`) if a run fails, so you know.
+   - **starts TradingView** with the debug port if it's closed (`start_tradingview`, on by default);
+   - **posts a ⚠️ message** to the channel (or to `alert_webhook_url`) if a run fails, with the reason, so you're never left wondering.
+4. **Optional: let it take the session back.** TradingView only streams to one device at a time, so if you open it on your phone or another computer, this machine's chart freezes and the post fails (you get the ⚠️ message). Set `"take_back_session": true` and the watcher instead restarts TradingView on this machine to take the session back. That bumps your other device for about a minute, so it's off until you turn it on.
 
 Prefer fixed times instead? Set `"mode": "schedule"` and it posts at `schedule_et`.
 
@@ -75,7 +75,7 @@ Every run also saves a copy in `output/`; `output/latest.txt` is always the newe
 
 ### Good to know
 - **It switches your chart's symbol for about a minute** while it reads, then puts it back. To keep your trading chart untouched, open a second TradingView window just for this and put its layout id (the part of the chart URL after `/chart/`) in `config.json` → `layout`.
-- **One device at a time.** TradingView only streams to the device that opened it last. If this machine shows *"Session disconnected"*, the chart is frozen. With `manage_tradingview` on, the watcher takes the session back by itself; otherwise click **Connect**.
+- **One device at a time.** TradingView only streams to the device that opened it last. If this machine shows *"Session disconnected"*, the chart is frozen. Click **Connect**, or turn on `take_back_session` and the watcher does it.
 - **A run takes about a minute** (5 markets × ~10 seconds).
 
 ## Configuration
@@ -90,7 +90,8 @@ Every run also saves a copy in `output/`; `output/latest.txt` is always the newe
 | `update_windows_et` | When to watch for updates (Eastern) | 7:30–11:30, 19:00–23:00 |
 | `update_check_minutes` | How often to check | `3` |
 | `schedule_et` | Post times in `schedule` mode (24h, Eastern) | `["08:05", "20:05"]` |
-| `manage_tradingview` | Start TradingView if closed; restart it to take the session back | `true` |
+| `start_tradingview` | Start TradingView with the debug port if it's closed | `true` |
+| `take_back_session` | Restart TradingView to take the session back from another device (bumps that device ~1 min) | `false` |
 | `alert_webhook_url` | Where failure notices go (blank = the main webhook) | blank |
 | `layout` | Use a specific window (layout id) | the first chart window |
 | `settle_seconds` | Max wait per market for the indicator to finish | `25` |

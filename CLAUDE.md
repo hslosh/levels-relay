@@ -26,10 +26,11 @@ You're helping a trader set up **levels-relay**. It reads MenthorQ gamma levels 
    - If numbers are missing or wrong, run `node levels-relay.mjs dump` on that market and look at what the chart reports. Usually it's a label name the parser doesn't know yet: extend `namesIn()` and `selftest`, then rerun.
 8. **First post:** only after they confirm. Run `node levels-relay.mjs post` and check it arrived in Discord.
 9. **Hands-off posting (ask if they want it):** the default `mode: "update"` posts as soon as MenthorQ's "Last Update" stamp changes (checked every 3 min, 7:30–11:30 and 19:00–23:00 ET).
-   - Explain `manage_tradingview` before leaving it on. It starts TradingView if it's closed, and **restarts it to take the session back** when another device (their phone, another PC) has it, which bumps that device for about a minute. If they don't want that, set it to `false`; failures are then reported instead.
+   - `start_tradingview` (on by default) starts TradingView with the debug port whenever it's closed. Nothing to decide.
+   - **Ask before turning on `take_back_session`.** Explain: TradingView streams to one device at a time; if they open it on their phone or another computer, this machine's chart freezes and the post fails. With `take_back_session: true`, the watcher restarts TradingView here to take the session back, which bumps the other device for about a minute. Leave it `false` unless they say yes. Failures are still reported either way.
    - Run `install-autostart.bat` / `install-autostart.command` once. Have them set the computer to never sleep (Windows: Settings → System → Power → Sleep: Never; the Mac script keeps the Mac awake on its own).
    - Run `node levels-relay.mjs status` to confirm it sees the chart and a "Last Update" stamp.
-   - Optionally set `alert_webhook_url` to a private channel so failure notices don't go to members.
+   - Explain the failure notices: if a run fails, a "⚠️ levels-relay couldn't post the levels: reason" message goes to the channel. Offer to set `alert_webhook_url` to a private channel so members don't see those.
 10. **Wrap up:** tell them what's set (channel, times, markets) and how to stop it (close the watch window, or run the matching `uninstall-autostart` script).
 
 ## Where things are
