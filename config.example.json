@@ -1,7 +1,7 @@
 {
   "webhook_url": "PASTE_YOUR_DISCORD_WEBHOOK_URL_HERE",
   "webhook_name": "Option Levels",
-  "alert_webhook_url": "",
+  "modlog_webhook_url": "PASTE_A_WEBHOOK_FROM_YOUR_MODLOG_CHANNEL_HERE (optional)",
 
   "mode": "update",
   "update_windows_et": [["07:30", "11:30"], ["19:00", "23:00"]],

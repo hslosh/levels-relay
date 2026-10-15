@@ -54,8 +54,10 @@ const DEFAULTS = {
   // Restart TradingView to take the session back when another device (phone,
   // laptop) has it. Bumps that device for about a minute, so it's opt-in.
   take_back_session: false,
-  // Where failures are reported. Empty = the main webhook.
-  alert_webhook_url: '',
+  // Where failure notices go: a webhook in a private channel such as #modlog.
+  // Failures are NEVER posted to the main levels channel; if this is empty
+  // they're only written to output/watch.log.
+  modlog_webhook_url: '',
   settle_seconds: 25,
 };
 
@@ -67,6 +69,7 @@ function loadConfig() {
     catch (e) { throw new Error(`config.json isn't valid JSON (${e.message}). Compare it with config.example.json.`); }
   }
   if ('manage_tradingview' in user && !('take_back_session' in user)) user.take_back_session = !!user.manage_tradingview;
+  if (user.alert_webhook_url && !user.modlog_webhook_url) user.modlog_webhook_url = user.alert_webhook_url;
   return { ...DEFAULTS, ...user, symbols: { ...DEFAULTS.symbols, ...(user.symbols || {}) },
            studies: { ...DEFAULTS.studies, ...(user.studies || {}) } };
 }
@@ -372,8 +375,10 @@ async function ensureTradingView(cfg, log = console.log) {
 }
 
 async function reportFailure(cfg, message) {
-  const url = cfg.alert_webhook_url || cfg.webhook_url;
-  if (!url) return;
+  const line = `[${nowET()} ET] couldn't post the levels: ${message}`;
+  try { mkdirSync(join(HERE, 'output'), { recursive: true }); writeFileSync(join(HERE, 'output', 'failures.log'), line + '\n', { flag: 'a' }); } catch { /* ignore */ }
+  const url = cfg.modlog_webhook_url;     // never the main channel
+  if (!url || url === cfg.webhook_url) return;
   try {
     await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: cfg.webhook_name, content: `⚠️ levels-relay couldn't post the levels: ${message}`.slice(0, 1900), allowed_mentions: { parse: [] } }) });
@@ -415,7 +420,7 @@ async function cmdStatus(cfg) {
   cdp.close();
   console.log(`Chart: ${snap.symbol} · ${snap.frozen ? 'FROZEN (Session disconnected)' : 'live'} · MenthorQ indicators: ${snap.studies.length}`);
   console.log(`Last update stamp(s): ${snap.frozen ? '(chart frozen)' : (await currentStamp(cfg)) || 'none found'}`);
-  console.log(`Mode: ${cfg.mode} · start_tradingview: ${cfg.start_tradingview} · take_back_session: ${cfg.take_back_session} · webhook set: ${!!cfg.webhook_url}`);
+  console.log(`Mode: ${cfg.mode} · start_tradingview: ${cfg.start_tradingview} · take_back_session: ${cfg.take_back_session} · levels webhook set: ${!!cfg.webhook_url} · modlog webhook set: ${!!cfg.modlog_webhook_url}`);
 }
 
 async function cmdDump(cfg) {
@@ -461,6 +466,7 @@ async function cmdWatch(cfg) {
     const statePath = join(HERE, 'output', 'last_stamp.txt');
     let last = existsSync(statePath) ? readFileSync(statePath, 'utf8').trim() : '';
     const fallbackDone = new Set();
+    let lastErr = '', lastErrAt = 0;
     for (;;) {
       const et = etNow(), hhmm = et.toTimeString().slice(0, 5);
       if (tradingSlot(et) && cfg.update_windows_et.some(([a, b]) => hhmm >= a && hhmm <= b)) {
@@ -481,7 +487,14 @@ async function cmdWatch(cfg) {
               writeFileSync(statePath, stamp);
             }
           }
-        } catch (e) { console.error(`[${hhmm} ET] check failed:`, e.message); }
+        } catch (e) {
+          console.error(`[${hhmm} ET] check failed:`, e.message);
+          // tell #modlog, but at most once an hour for the same problem
+          if (e.message !== lastErr || Date.now() - lastErrAt > 3600000) {
+            lastErr = e.message; lastErrAt = Date.now();
+            await reportFailure(cfg, e.message);
+          }
+        }
       }
       const nearSlot = cfg.schedule_et.some(t => { const [h, m] = t.split(':').map(Number); const mins = h * 60 + m - (et.getHours() * 60 + et.getMinutes()); return mins > 0 && mins <= cfg.update_check_minutes; });
       await sleep(nearSlot ? 30000 : cfg.update_check_minutes * 60000);

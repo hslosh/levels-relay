@@ -23,13 +23,12 @@ The webhook URL is wrong or was deleted. Make a new one (Channel settings → In
 - Was TradingView running with the debug port at that time?
 - `schedule_et` uses **Eastern** time. Mornings post Mon–Fri, evenings Sun–Thu.
 
-**A ⚠️ "couldn't post the levels" message showed up in Discord**
-That's the watcher reporting a failed run; the reason is in the message. The most common ones:
+**A ⚠️ "couldn't post the levels" message showed up in #modlog**
+That's the watcher reporting a failed run; the reason is in the message. (These only ever go to `modlog_webhook_url`, never to the levels channel. Without one, they're in `output/failures.log`.) The most common ones:
 - *Session disconnected:* see above.
 - *TradingView did not come up:* TradingView couldn't start. Open it with the start script once and check that it's signed in.
 - *No MenthorQ indicator:* the chart that opened doesn't have MenthorQ on it. Open the right layout, or set `layout` in `config.json`.
 
-To send these notices somewhere private, set `alert_webhook_url` to a webhook in a private channel.
 
 **Nothing posted while I was away**
 - Is the computer awake? (Windows: Settings → System → Power → Sleep: Never.)

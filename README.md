@@ -54,8 +54,8 @@ For posts that keep coming while you're away from the desk:
 3. **That's it.** With the default settings, the watcher:
    - checks the MenthorQ **"Last Update"** stamp every 3 minutes, 7:30–11:30 AM and 7:00–11:00 PM ET, and **posts as soon as new levels appear**;
    - **starts TradingView** with the debug port if it's closed (`start_tradingview`, on by default);
-   - **posts a ⚠️ message** to the channel (or to `alert_webhook_url`) if a run fails, with the reason, so you're never left wondering.
-4. **Optional: let it take the session back.** TradingView only streams to one device at a time, so if you open it on your phone or another computer, this machine's chart freezes and the post fails (you get the ⚠️ message). Set `"take_back_session": true` and the watcher instead restarts TradingView on this machine to take the session back. That bumps your other device for about a minute, so it's off until you turn it on.
+   - **reports failures to #modlog, never to the levels channel.** If a run fails, a "⚠️ couldn't post the levels: reason" message goes to the webhook in `modlog_webhook_url` (make one in your #modlog channel the same way), so members never see it and you're never left wondering. Without a modlog webhook, failures are written to `output/failures.log`.
+4. **Optional: let it take the session back.** TradingView only streams to one device at a time, so if you open it on your phone or another computer, this machine's chart freezes and the post fails (you get the ⚠️ message in #modlog). Set `"take_back_session": true` and the watcher instead restarts TradingView on this machine to take the session back. That bumps your other device for about a minute, so it's off until you turn it on.
 
 Prefer fixed times instead? Set `"mode": "schedule"` and it posts at `schedule_et`.
 
@@ -90,7 +90,7 @@ Every run also saves a copy in `output/`; `output/latest.txt` is always the newe
 | `schedule_et` | Post times in `schedule` mode (24h, Eastern) | `["08:05", "20:05"]` |
 | `start_tradingview` | Start TradingView with the debug port if it's closed | `true` |
 | `take_back_session` | Restart TradingView to take the session back from another device (bumps that device ~1 min) | `false` |
-| `alert_webhook_url` | Where failure notices go (blank = the main webhook) | blank |
+| `modlog_webhook_url` | Webhook in #modlog for failure notices (never sent to the levels channel) | blank = local log only |
 | `layout` | Use a specific window (layout id) | the first chart window |
 | `settle_seconds` | Max wait per market for the indicator to finish | `25` |
 

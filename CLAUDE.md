@@ -13,8 +13,8 @@ You're helping a trader set up **levels-relay**. It reads MenthorQ gamma levels 
 
 1. **Node.js:** run `node --version`. If it's missing or below 22, send them to https://nodejs.org (LTS) and wait.
 2. **Self-test:** run `node levels-relay.mjs selftest`. All checks should pass. If any fail, stop and report.
-3. **Webhook:** ask them to create a Discord webhook in the channel they want: *Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL*. It must start with `https://discord.com/api/webhooks/`. An invite link (`discord.gg/…`) won't work.
-4. **Config:** copy `config.example.json` to `config.json` and write the webhook URL into it. Don't echo the URL back.
+3. **Webhooks:** ask them to create a Discord webhook in the channel the levels go to: *Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL*. It must start with `https://discord.com/api/webhooks/`. An invite link (`discord.gg/…`) won't work. Then ask for a **second webhook in their #modlog channel** (or any private staff channel) for failure notices. Failures never go to the levels channel.
+4. **Config:** copy `config.example.json` to `config.json`. Write the levels webhook into `webhook_url` and the #modlog one into `modlog_webhook_url` (or set it to `""` if they skipped it). Don't echo either URL back.
 5. **TradingView with the debug port:**
    - Check whether port 9222 answers: `curl -s http://127.0.0.1:9222/json/version` (Windows PowerShell: `Invoke-RestMethod http://127.0.0.1:9222/json/version`).
    - If it doesn't, ask the user to **fully quit** TradingView themselves (Windows: also the system tray), then run `start-tradingview.bat` (Windows) or `start-tradingview.command` (Mac). Wait about 30 seconds.
@@ -30,7 +30,7 @@ You're helping a trader set up **levels-relay**. It reads MenthorQ gamma levels 
    - **Ask before turning on `take_back_session`.** Explain: TradingView streams to one device at a time; if they open it on their phone or another computer, this machine's chart freezes and the post fails. With `take_back_session: true`, the watcher restarts TradingView here to take the session back, which bumps the other device for about a minute. Leave it `false` unless they say yes. Failures are still reported either way.
    - Run `install-autostart.bat` / `install-autostart.command` once. Have them set the computer to never sleep (Windows: Settings → System → Power → Sleep: Never; the Mac script keeps the Mac awake on its own).
    - Run `node levels-relay.mjs status` to confirm it sees the chart and a "Last Update" stamp.
-   - Explain the failure notices: if a run fails, a "⚠️ levels-relay couldn't post the levels: reason" message goes to the channel. Offer to set `alert_webhook_url` to a private channel so members don't see those.
+   - Explain the failure notices: if a run fails, a "⚠️ levels-relay couldn't post the levels: reason" message goes to **#modlog** (`modlog_webhook_url`), never to the levels channel. If they have no modlog webhook, failures only go to `output/failures.log`. Recommend setting it up so they actually hear about failures.
 10. **Wrap up:** tell them what's set (channel, times, markets) and how to stop it (close the watch window, or run the matching `uninstall-autostart` script).
 
 ## Where things are
