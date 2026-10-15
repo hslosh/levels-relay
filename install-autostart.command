@@ -4,8 +4,10 @@
 cd "$(dirname "$0")"
 DIR="$(pwd)"
 NODE="$(command -v node)"
-if [ -z "$NODE" ]; then echo "Node.js not found. Install it from https://nodejs.org first."; exit 1; fi
+if [ -z "$NODE" ]; then echo "Node.js isn't installed yet. Get the LTS version from https://nodejs.org, install it, then open this again."; exit 1; fi
+"$NODE" -e "process.exit(+process.versions.node.split('.')[0] < 22 ? 1 : 0)" || { echo "Node.js is too old (need 22 or newer). Install the LTS version from https://nodejs.org."; exit 1; }
 if [ ! -f config.json ]; then echo "config.json is missing. Copy config.example.json to config.json and add your webhook first."; exit 1; fi
+"$NODE" levels-relay.mjs validate || exit 1
 mkdir -p output
 PLIST="$HOME/Library/LaunchAgents/com.levels-relay.watch.plist"
 cat > "$PLIST" <<PL

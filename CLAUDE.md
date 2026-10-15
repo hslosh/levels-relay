@@ -11,14 +11,14 @@ You're helping a trader set up **levels-relay**. It reads MenthorQ gamma levels 
 
 ## Steps
 
-0. **Where they are:** if they downloaded a ZIP, make sure it's unzipped to a permanent folder (not Downloads, not inside the zip). On a Mac, clear the download quarantine so the `.command` files open: `xattr -dr com.apple.quarantine .` (explain what it does first). On Windows, warn them that the first double-click on each `.bat` shows SmartScreen: **More info → Run anyway**.
+0. **Where they are:** if they downloaded a ZIP, make sure it's unzipped to a permanent folder (not Downloads, not inside the zip). On a Mac, clear the download quarantine so the `.command` files open: `xattr -dr com.apple.quarantine .` (explain what it does first: it removes the "downloaded from the internet" flag on just this folder). Without it, current macOS blocks each `.command` until they click *System Settings → Privacy & Security → Open Anyway*. The repo is private, so they need a GitHub account that's been invited to download it. On Windows, warn them that the first double-click on each `.bat` shows SmartScreen: **More info → Run anyway**.
 1. **Node.js:** run `node --version`. If it's missing or below 22:
    - Windows: offer `winget install OpenJS.NodeJS.LTS` (it shows an admin prompt they accept), or send them to https://nodejs.org (LTS).
    - Mac: send them to https://nodejs.org (LTS .pkg; it asks for their password).
    - Afterwards they may need to open a new terminal so `node` is found.
 2. **Self-test:** run `node levels-relay.mjs selftest`. All checks should pass. If any fail, stop and report.
 3. **Webhooks:** ask them to create a Discord webhook in the channel the levels go to: *Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL*. It must start with `https://discord.com/api/webhooks/`. An invite link (`discord.gg/…`) won't work. Then ask for a **second webhook in their #modlog channel** (or any private staff channel) for failure notices. Failures never go to the levels channel.
-4. **Config:** copy `config.example.json` to `config.json`. Write the levels webhook into `webhook_url` and the #modlog one into `modlog_webhook_url` (or set it to `""` if they skipped it). Don't echo either URL back.
+4. **Config:** copy `config.example.json` to `config.json`. Write the levels webhook into `webhook_url` and the #modlog one into `modlog_webhook_url` (or set it to `""` if they skipped it). Don't echo either URL back. Then run `node levels-relay.mjs validate`; it should say "config.json looks good."
 5. **TradingView with the debug port:**
    - Check whether port 9222 answers: `curl -s http://127.0.0.1:9222/json/version` (Windows PowerShell: `Invoke-RestMethod http://127.0.0.1:9222/json/version`).
    - If it doesn't, ask the user to **fully quit** TradingView themselves (Windows: also the system tray), then run `start-tradingview.bat` (Windows) or `start-tradingview.command` (Mac). Wait about 30 seconds.

@@ -26,10 +26,11 @@ If you've never used Node.js or run scripts on this computer, expect a few one-t
 | When | What you'll see | What to do |
 |---|---|---|
 | Installing Node.js | A normal installer. Windows asks *"Do you want to allow this app to make changes?"*; a Mac asks for your password | Yes / enter password. Default options are fine |
-| Getting the files | GitHub → green **Code** button → **Download ZIP**, then unzip it somewhere permanent (e.g. Documents) | Don't run it from inside the zip or your Downloads folder |
+| Getting the files | Sign in to GitHub (the repo is private, so you need to be invited), then green **Code** button → **Download ZIP**. Unzip it somewhere permanent (e.g. Documents) | Don't run it from inside the zip or your Downloads folder |
 | Windows: first double-click on a `.bat` | Blue *"Windows protected your PC"* (SmartScreen), because the file came from the internet | **More info → Run anyway** (once per file) |
-| Mac: first double-click on a `.command` | *"cannot be opened because it is from an unidentified developer"* | **Right-click → Open → Open** (once per file), or have Claude clear it for you |
-| Mac: first run in Terminal | *"Terminal would like to control…"* or similar | **Allow** |
+| Mac: first double-click on a `.command` | *"Apple could not verify … is free of malware"* (or *"unidentified developer"*), because it came from the internet | Click **Done**, then *System Settings → Privacy & Security*, scroll down, **Open Anyway** (once per file). Easier: open Terminal in the folder and run `xattr -dr com.apple.quarantine .` once, or let Claude do it |
+| Mac: first run in Terminal | *"Terminal would like to access files in your Documents folder"* or similar | **Allow** |
+| Node.js missing or too old | The scripts say so and link to nodejs.org | Install the LTS version, then **open a new Terminal window** |
 | Mac: after the auto-start script | A *"Background Items Added"* notification | Nothing; that's the watcher |
 | Using Claude to set it up | Claude asks before running each command | Approve them. Each one is explained |
 

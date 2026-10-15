@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1
+- Clear message instead of a crash when Node.js is missing or older than 22 (all launchers and the tool itself).
+- A broken `config.json` gives a plain-English error instead of a stack trace. Unknown commands list the valid ones.
+- Webhooks are checked **before** touching the chart; the example's `PASTE_...` placeholders count as "not set".
+- New `validate` command; both auto-start installers run it first, so a placeholder webhook can no longer start a watcher that fails in a loop.
+- `start-tradingview.command` says so if TradingView Desktop isn't installed. `watch.bat` stays open on errors.
+- `.bat` files use Windows line endings. README: current macOS security prompt ("Open Anyway"), private-repo download note.
+
 ## 1.2.0
 - Windows auto-start uses the Startup folder (no administrator rights needed); the watcher runs minimized and logs to `output/watch.log`.
 - README: "First-time setup: what you'll see" lists every one-time prompt (installer, SmartScreen, Gatekeeper).

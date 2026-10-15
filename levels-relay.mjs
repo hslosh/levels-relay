@@ -23,7 +23,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 
 // ---------------------------------------------------------------- config
 const DEFAULTS = {
@@ -70,6 +70,8 @@ function loadConfig() {
   }
   if ('manage_tradingview' in user && !('take_back_session' in user)) user.take_back_session = !!user.manage_tradingview;
   if (user.alert_webhook_url && !user.modlog_webhook_url) user.modlog_webhook_url = user.alert_webhook_url;
+  // the example config's "PASTE_..." placeholders mean "not set"
+  for (const k of ['webhook_url', 'modlog_webhook_url']) if (typeof user[k] === 'string' && !/^https:\/\//.test(user[k].trim())) user[k] = '';
   return { ...DEFAULTS, ...user, symbols: { ...DEFAULTS.symbols, ...(user.symbols || {}) },
            studies: { ...DEFAULTS.studies, ...(user.studies || {}) } };
 }
@@ -291,9 +293,16 @@ function render(results) {
   return parts;
 }
 
+const WEBHOOK_RE = /^https:\/\/(?:\w+\.)?discord(?:app)?\.com\/api\/webhooks\//;
+function requireWebhook(cfg) {
+  if (!cfg.webhook_url || !WEBHOOK_RE.test(cfg.webhook_url))
+    throw new Error('config.json needs a Discord webhook URL in "webhook_url" (Channel settings → Integrations → Webhooks → Copy Webhook URL). An invite link (discord.gg/...) won\'t work.');
+  if (cfg.modlog_webhook_url && !WEBHOOK_RE.test(cfg.modlog_webhook_url))
+    throw new Error('"modlog_webhook_url" in config.json isn\'t a Discord webhook URL. Fix it, or set it to "" to skip failure notices.');
+}
+
 async function postWebhook(cfg, parts) {
-  if (!cfg.webhook_url || !/^https:\/\/(?:\w+\.)?discord(?:app)?\.com\/api\/webhooks\//.test(cfg.webhook_url))
-    throw new Error('config.json needs a Discord webhook URL (Channel settings → Integrations → Webhooks → Copy Webhook URL). An invite link won\'t work.');
+  requireWebhook(cfg);
   const chunks = [];
   let cur = '';
   for (const p of parts) {
@@ -432,6 +441,7 @@ async function cmdDump(cfg) {
 
 async function cmdRead(cfg, post) {
   console.log(`levels-relay ${VERSION}`);
+  if (post) requireWebhook(cfg);   // fail before switching any charts
   const results = await readAll(cfg);
   const parts = render(results);
   console.log('\n' + parts.join('\n\n').replace(/\*\*/g, ''));
@@ -455,6 +465,7 @@ async function runOnce(cfg, why) {
 }
 
 async function cmdWatch(cfg) {
+  requireWebhook(cfg);
   const etNow = () => new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
   const tradingSlot = et => {
     const hhmm = et.toTimeString().slice(0, 5), day = et.getDay();
@@ -539,11 +550,16 @@ function cmdSelftest() {
   process.exit(bad ? 1 : 0);
 }
 
+if (Number(process.versions.node.split('.')[0]) < 22) {
+  console.error(`levels-relay needs Node.js 22 or newer; this computer has ${process.version}. Install the LTS version from https://nodejs.org, then open a new terminal window.`);
+  process.exit(1);
+}
 const cmd = process.argv[2] || 'read';
 if (cmd === 'selftest') cmdSelftest();
 else {
-  const cfg = loadConfig();
-  const run = { check: cmdCheck, status: cmdStatus, dump: cmdDump, read: c => cmdRead(c, false), post: c => cmdRead(c, true), watch: cmdWatch }[cmd];
-  if (!run) { console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('*/')[0]); process.exit(2); }
+  let cfg;
+  try { cfg = loadConfig(); } catch (e) { console.error('Error:', e.message); process.exit(1); }
+  const run = { validate: async c => { requireWebhook(c); console.log('config.json looks good.'); }, check: cmdCheck, status: cmdStatus, dump: cmdDump, read: c => cmdRead(c, false), post: c => cmdRead(c, true), watch: cmdWatch }[cmd];
+  if (!run) { console.log(`Unknown command "${cmd}". Use one of: selftest, validate, check, status, dump, read, post, watch.`); process.exit(2); }
   run(cfg).catch(e => { console.error('Error:', e.message); process.exit(1); });
 }
