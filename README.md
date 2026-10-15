@@ -2,9 +2,7 @@
 
 **Post exact MenthorQ option levels to Discord without screenshots or AI.**
 
-Each morning and evening, the MenthorQ gamma levels get screenshotted and posted. Then everyone runs the screenshots through an AI prompt to get the numbers for the **Option Levels / Auto-GEX Master Levels** indicator. That's slow, and the AI misreads levels when labels overlap or a price box is cut off at the edge.
-
-`levels-relay` reads the levels **straight off your TradingView chart**, exactly as MenthorQ draws them. It turns them into the ready-to-paste number strings the indicator uses, for **NQ, ES, GC, CL and SI**, and can post them to a Discord channel on a schedule. Members copy one line per market into the indicator, and that's it.
+`levels-relay` reads the MenthorQ levels **straight off your TradingView chart**, exactly as MenthorQ draws them. It turns them into the ready-to-paste number strings the indicator uses, for **NQ, ES, GC, CL and SI**, and can post them to a Discord channel on a schedule. Members copy one line per market into the indicator, and that's it.
 
 ```
 📊 MenthorQ option levels · Wed, Oct 15, 8:05 AM ET
