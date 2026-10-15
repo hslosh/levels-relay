@@ -457,12 +457,20 @@ async function cmdWatch(cfg) {
                 `${cfg.update_windows_et.map(w => w.join('-')).join(' and ')} ET). Ctrl+C to stop.`);
     const statePath = join(HERE, 'output', 'last_stamp.txt');
     let last = existsSync(statePath) ? readFileSync(statePath, 'utf8').trim() : '';
+    const fallbackDone = new Set();
     for (;;) {
       const et = etNow(), hhmm = et.toTimeString().slice(0, 5);
       if (tradingSlot(et) && cfg.update_windows_et.some(([a, b]) => hhmm >= a && hhmm <= b)) {
         try {
           await ensureTradingView(cfg);
           const stamp = await currentStamp(cfg);
+          // Safety net: if no "Last Update" stamp can be read at all, fall
+          // back to posting at the schedule_et times so nothing is missed.
+          const slot = et.toDateString() + hhmm;
+          if (!stamp && cfg.schedule_et.includes(hhmm) && !fallbackDone.has(slot)) {
+            fallbackDone.add(slot);
+            await runOnce(cfg, `no "Last Update" stamp found: scheduled fallback post (${hhmm} ET)`);
+          }
           if (stamp && stamp !== last) {
             if (await runOnce(cfg, `MenthorQ updated (${stamp}): posting`)) {
               last = stamp;
@@ -472,7 +480,8 @@ async function cmdWatch(cfg) {
           }
         } catch (e) { console.error(`[${hhmm} ET] check failed:`, e.message); }
       }
-      await sleep(cfg.update_check_minutes * 60000);
+      const nearSlot = cfg.schedule_et.some(t => { const [h, m] = t.split(':').map(Number); const mins = h * 60 + m - (et.getHours() * 60 + et.getMinutes()); return mins > 0 && mins <= cfg.update_check_minutes; });
+      await sleep(nearSlot ? 30000 : cfg.update_check_minutes * 60000);
     }
   }
   console.log(`levels-relay ${VERSION} watching. Posts at ${cfg.schedule_et.join(', ')} ET (mornings Mon-Fri, evenings Sun-Thu). Ctrl+C to stop.`);
