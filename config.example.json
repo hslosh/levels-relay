@@ -1,6 +1,14 @@
 {
   "webhook_url": "PASTE_YOUR_DISCORD_WEBHOOK_URL_HERE",
   "webhook_name": "Option Levels",
+  "alert_webhook_url": "",
+
+  "mode": "update",
+  "update_windows_et": [["07:30", "11:30"], ["19:00", "23:00"]],
+  "update_check_minutes": 3,
+  "schedule_et": ["08:05", "20:05"],
+
+  "manage_tradingview": true,
 
   "studies": {
     "eod": "MenthorQ Gamma Levels EOD",
@@ -15,7 +23,6 @@
     "SILVER": "COMEX:SI1!"
   },
 
-  "schedule_et": ["08:05", "20:05"],
   "layout": "",
   "port": 9222,
   "settle_seconds": 25

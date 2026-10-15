@@ -13,7 +13,7 @@ cat > "$PLIST" <<PL
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.levels-relay.watch</string>
-  <key>ProgramArguments</key><array><string>$NODE</string><string>$DIR/levels-relay.mjs</string><string>watch</string></array>
+  <key>ProgramArguments</key><array><string>/usr/bin/caffeinate</string><string>-i</string><string>$NODE</string><string>$DIR/levels-relay.mjs</string><string>watch</string></array>
   <key>WorkingDirectory</key><string>$DIR</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -22,4 +22,4 @@ cat > "$PLIST" <<PL
 </dict></plist>
 PL
 launchctl unload "$PLIST" 2>/dev/null
-launchctl load "$PLIST" && echo "Done. The watcher is running now and will start at every login. Log: output/watch.log"
+launchctl load "$PLIST" && echo "Done. The watcher is running now, keeps the Mac awake while it runs, and starts at every login. Log: output/watch.log"

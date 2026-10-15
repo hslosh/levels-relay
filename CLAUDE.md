@@ -25,10 +25,11 @@ You're helping a trader set up **levels-relay**. It reads MenthorQ gamma levels 
 7. **Read (no posting):** run `node levels-relay.mjs read`. It switches the chart through 5 markets (about a minute) and puts it back. Ask them to compare a few numbers per market with their chart, especially GEX 1, Call Resistance, HVL and 1D Max/Min. The order of the 38 numbers is in `docs/OUTPUT-FORMAT.md`.
    - If numbers are missing or wrong, run `node levels-relay.mjs dump` on that market and look at what the chart reports. Usually it's a label name the parser doesn't know yet: extend `namesIn()` and `selftest`, then rerun.
 8. **First post:** only after they confirm. Run `node levels-relay.mjs post` and check it arrived in Discord.
-9. **Schedule (optional):** explain `schedule_et` (Eastern times; default 08:05 and 20:05). For hands-off posting:
-   - `watch.bat` / `watch.command` (keep the window open), or
-   - `install-autostart.bat` / `install-autostart.command` (starts the watcher at login).
-   - TradingView must also be running with the debug port at those times. Suggest they start it with the start script each day, or add the start script to their login items.
+9. **Hands-off posting (ask if they want it):** the default `mode: "update"` posts as soon as MenthorQ's "Last Update" stamp changes (checked every 3 min, 7:30–11:30 and 19:00–23:00 ET).
+   - Explain `manage_tradingview` before leaving it on. It starts TradingView if it's closed, and **restarts it to take the session back** when another device (their phone, another PC) has it, which bumps that device for about a minute. If they don't want that, set it to `false`; failures are then reported instead.
+   - Run `install-autostart.bat` / `install-autostart.command` once. Have them set the computer to never sleep (Windows: Settings → System → Power → Sleep: Never; the Mac script keeps the Mac awake on its own).
+   - Run `node levels-relay.mjs status` to confirm it sees the chart and a "Last Update" stamp.
+   - Optionally set `alert_webhook_url` to a private channel so failure notices don't go to members.
 10. **Wrap up:** tell them what's set (channel, times, markets) and how to stop it (close the watch window, or run the matching `uninstall-autostart` script).
 
 ## Where things are

@@ -15,7 +15,7 @@ ES
 ```
 
 - **Exact:** reads the chart's own numbers, using the "Key Levels" table when it's on the chart and the labeled lines otherwise.
-- **Hands-off:** one command, or leave it running and it posts at the times you choose.
+- **Fully hands-off:** it posts the moment MenthorQ updates, starts TradingView itself if needed, takes the session back if another device grabbed it, and tells the channel if anything goes wrong.
 - **Private:** runs on your machine and only ever sends to the one Discord webhook you give it.
 - **Nothing to install** except Node.js. No packages, no accounts, no API keys.
 
@@ -47,20 +47,35 @@ Claude reads [`CLAUDE.md`](CLAUDE.md) and walks you through it step by step. It 
    ```
    Compare a few numbers from `read` against your chart. Once they match, you're done.
 
+## Fully hands-off (set and forget)
+
+For posts that keep coming while you're away from the desk:
+
+1. **Leave one computer on.** Windows: *Settings → System → Power → Sleep: Never* (screen off is fine). On a Mac, the auto-start below keeps it awake on its own.
+2. **Run the auto-start once:** `install-autostart.bat` (Windows) or `install-autostart.command` (Mac). The watcher then starts at every login.
+3. **That's it.** With the default settings, the watcher:
+   - checks the MenthorQ **"Last Update"** stamp every 3 minutes, 7:30–11:30 AM and 7:00–11:00 PM ET, and **posts as soon as new levels appear**;
+   - **starts TradingView** with the debug port if it's closed;
+   - **restarts TradingView to take the session back** if you opened TradingView on your phone or another computer (otherwise the chart freezes). This bumps the other device for about a minute; set `manage_tradingview` to `false` if you'd rather it just report the problem;
+   - **posts a ⚠️ message** to the channel (or to `alert_webhook_url`) if a run fails, so you know.
+
+Prefer fixed times instead? Set `"mode": "schedule"` and it posts at `schedule_et`.
+
 ## Daily use
 
 | Want to… | Do this |
 |---|---|
 | Post right now | double-click `run.bat` / `run.command` |
-| Post automatically | leave `watch.bat` / `watch.command` running: it posts at `schedule_et` (default **8:05 AM** and **8:05 PM ET**; mornings Mon–Fri, evenings Sun–Thu) |
+| Post automatically | leave `watch.bat` / `watch.command` running: it posts whenever MenthorQ updates (see above) |
 | Start automatically when you log in | run `install-autostart.bat` (Windows) or `install-autostart.command` (Mac) once |
 | Read without posting | `node levels-relay.mjs read` |
+| Is everything OK? | `node levels-relay.mjs status` (live or frozen, latest MenthorQ update) |
 
 Every run also saves a copy in `output/`; `output/latest.txt` is always the newest set.
 
 ### Good to know
 - **It switches your chart's symbol for about a minute** while it reads, then puts it back. To keep your trading chart untouched, open a second TradingView window just for this and put its layout id (the part of the chart URL after `/chart/`) in `config.json` → `layout`.
-- **One device at a time.** TradingView only streams to the device that opened it last. If this machine shows *"Session disconnected"*, the chart is frozen; click **Connect** first. The tool stops and tells you if it sees this.
+- **One device at a time.** TradingView only streams to the device that opened it last. If this machine shows *"Session disconnected"*, the chart is frozen. With `manage_tradingview` on, the watcher takes the session back by itself; otherwise click **Connect**.
 - **A run takes about a minute** (5 markets × ~10 seconds).
 
 ## Configuration
@@ -71,7 +86,12 @@ Every run also saves a copy in `output/`; `output/latest.txt` is always the newe
 | `webhook_name` | Name shown on the post | `Option Levels` |
 | `studies.eod` / `studies.intraday` | Part of the MenthorQ indicator names | `MenthorQ Gamma Levels EOD` / `… Intraday` |
 | `symbols` | Chart symbol for each market | NQ1!, ES1!, GC1!, CL1!, SI1! |
-| `schedule_et` | Post times for `watch` (24h, Eastern) | `["08:05", "20:05"]` |
+| `mode` | `update` = post when MenthorQ updates · `schedule` = post at `schedule_et` | `update` |
+| `update_windows_et` | When to watch for updates (Eastern) | 7:30–11:30, 19:00–23:00 |
+| `update_check_minutes` | How often to check | `3` |
+| `schedule_et` | Post times in `schedule` mode (24h, Eastern) | `["08:05", "20:05"]` |
+| `manage_tradingview` | Start TradingView if closed; restart it to take the session back | `true` |
+| `alert_webhook_url` | Where failure notices go (blank = the main webhook) | blank |
 | `layout` | Use a specific window (layout id) | the first chart window |
 | `settle_seconds` | Max wait per market for the indicator to finish | `25` |
 

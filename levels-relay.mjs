@@ -9,19 +9,21 @@
  *
  *   node levels-relay.mjs selftest   check the parser (no TradingView needed)
  *   node levels-relay.mjs check      connect + list what the chart has loaded
+ *   node levels-relay.mjs status     is the chart live? current MenthorQ "Last Update" stamp
  *   node levels-relay.mjs dump       raw MenthorQ labels/lines/tables on the current chart
  *   node levels-relay.mjs read       step through every symbol, print the strings
  *   node levels-relay.mjs post       read, then post to the Discord webhook
- *   node levels-relay.mjs watch      stay running; post at the scheduled ET times
+ *   node levels-relay.mjs watch      stay running; post when MenthorQ updates (or at set times)
  *
  * TradingView Desktop must be started with the debug port (start-tradingview.*).
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { execSync, spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 
 // ---------------------------------------------------------------- config
 const DEFAULTS = {
@@ -42,6 +44,16 @@ const DEFAULTS = {
   studies: { eod: 'MenthorQ Gamma Levels EOD', intraday: 'MenthorQ Gamma Levels Intraday' },
   // ET times for `watch` (24h). Morning runs Mon-Fri, evening runs Sun-Thu.
   schedule_et: ['08:05', '20:05'],
+  // "update": post as soon as MenthorQ's "Last Update" stamp changes (checked
+  // every few minutes inside the windows below). "schedule": post at schedule_et.
+  mode: 'update',
+  update_windows_et: [['07:30', '11:30'], ['19:00', '23:00']],
+  update_check_minutes: 3,
+  // Let the tool start TradingView if it's closed, and restart it to take the
+  // session back when another device has it (the chart is frozen otherwise).
+  manage_tradingview: true,
+  // Where failures are reported. Empty = the main webhook.
+  alert_webhook_url: '',
   settle_seconds: 25,
 };
 
@@ -299,6 +311,84 @@ function save(results) {
   writeFileSync(join(dir, 'latest.txt'), render(results).join('\n\n').replace(/\*\*|`{3}|_/g, '') + '\n');
 }
 
+// ---------------------------------------------------------------- self-healing
+const IS_WIN = process.platform === 'win32';
+
+function tvRunning() {
+  try {
+    if (IS_WIN) return /TradingView\.exe/i.test(execSync('tasklist /FI "IMAGENAME eq TradingView.exe"', { encoding: 'utf8' }));
+    return execSync('pgrep -x TradingView || true', { encoding: 'utf8' }).trim().length > 0;
+  } catch { return false; }
+}
+
+function tvLaunch() {
+  if (IS_WIN) {
+    const ps = "$p = Get-AppxPackage TradingView.Desktop; if ($p) { Start-Process (Join-Path $p.InstallLocation 'TradingView.exe') -ArgumentList '--remote-debugging-port=9222' } " +
+               "elseif (Test-Path \"$env:LOCALAPPDATA\\Programs\\TradingView\\TradingView.exe\") { Start-Process \"$env:LOCALAPPDATA\\Programs\\TradingView\\TradingView.exe\" -ArgumentList '--remote-debugging-port=9222' }";
+    spawn('powershell', ['-NoProfile', '-Command', ps], { detached: true, stdio: 'ignore' }).unref();
+  } else {
+    spawn('open', ['-a', 'TradingView', '--args', '--remote-debugging-port=9222'], { detached: true, stdio: 'ignore' }).unref();
+  }
+}
+
+function tvKill() {
+  try {
+    if (IS_WIN) execSync('taskkill /F /IM TradingView.exe /T', { stdio: 'ignore' });
+    else execSync('osascript -e \'quit app "TradingView"\'', { stdio: 'ignore' });
+  } catch { /* already closed */ }
+}
+
+async function waitForChart(cfg, seconds = 120) {
+  for (let i = 0; i < seconds / 3; i++) {
+    try { if ((await cdpTargets(cfg.port)).length) { await sleep(15000); return true; } } catch { /* not up yet */ }
+    await sleep(3000);
+  }
+  return false;
+}
+
+// Make sure a live (not frozen) chart is reachable. Never reloads the page:
+// a reload through the debug connection can log TradingView out.
+async function ensureTradingView(cfg, log = console.log) {
+  let reachable = false;
+  try { reachable = (await cdpTargets(cfg.port)).length > 0; } catch { reachable = false; }
+  if (!reachable) {
+    if (!cfg.manage_tradingview) throw new Error('TradingView isn\'t reachable on the debug port, and manage_tradingview is off.');
+    if (tvRunning()) { log('  TradingView is running without the debug port: restarting it'); tvKill(); await sleep(4000); }
+    else log('  TradingView is closed: starting it');
+    tvLaunch();
+    if (!(await waitForChart(cfg))) throw new Error('TradingView did not come up with a chart within 2 minutes.');
+  }
+  const cdp = await connect(cfg.port, cfg.layout);
+  const frozen = await cdp.evaluate("((document.body && document.body.innerText) || '').indexOf('Session disconnected') >= 0");
+  cdp.close();
+  if (!frozen) return;
+  if (!cfg.manage_tradingview) throw new Error('The chart shows "Session disconnected" (another device has the session).');
+  log('  chart is frozen (another device has the session): restarting TradingView to take it back');
+  tvKill(); await sleep(4000); tvLaunch();
+  if (!(await waitForChart(cfg))) throw new Error('TradingView did not come back after the restart.');
+}
+
+async function reportFailure(cfg, message) {
+  const url = cfg.alert_webhook_url || cfg.webhook_url;
+  if (!url) return;
+  try {
+    await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: cfg.webhook_name, content: `⚠️ levels-relay couldn't post the levels: ${message}`.slice(0, 1900), allowed_mentions: { parse: [] } }) });
+  } catch { /* nothing else we can do */ }
+}
+
+// The "Last Update" stamps on the current chart (no symbol switching).
+async function currentStamp(cfg) {
+  const cdp = await connect(cfg.port, cfg.layout);
+  try {
+    const snap = await cdp.evaluate(READ_JS([cfg.studies.eod, cfg.studies.intraday]));
+    if (snap.frozen) return null;
+    const txt = snap.studies.flatMap(s => s.cells.map(c => c.t).concat(s.labels.map(l => l.t))).join(' ');
+    const stamps = [...txt.matchAll(/Last Update:?\s*([0-9:\-\s]+(?:EST|EDT|ET)?)/gi)].map(m => m[1].trim()).sort();
+    return stamps.length ? stamps.join(' | ') : null;
+  } finally { cdp.close(); }
+}
+
 // ---------------------------------------------------------------- commands
 async function cmdCheck(cfg) {
   const cdp = await connect(cfg.port, cfg.layout);
@@ -314,6 +404,15 @@ async function cmdCheck(cfg) {
   }
   console.log(hits >= 2 ? '\nBoth MenthorQ indicators found. Next: node levels-relay.mjs read'
     : '\n⚠️  Expected 2 MenthorQ indicators (EOD + Intraday). Put their exact names in config.json → "studies".');
+}
+
+async function cmdStatus(cfg) {
+  const cdp = await connect(cfg.port, cfg.layout);
+  const snap = await cdp.evaluate(READ_JS([cfg.studies.eod, cfg.studies.intraday]));
+  cdp.close();
+  console.log(`Chart: ${snap.symbol} · ${snap.frozen ? 'FROZEN (Session disconnected)' : 'live'} · MenthorQ indicators: ${snap.studies.length}`);
+  console.log(`Last update stamp(s): ${snap.frozen ? '(chart frozen)' : (await currentStamp(cfg)) || 'none found'}`);
+  console.log(`Mode: ${cfg.mode} · manage_tradingview: ${cfg.manage_tradingview} · webhook set: ${!!cfg.webhook_url}`);
 }
 
 async function cmdDump(cfg) {
@@ -334,17 +433,55 @@ async function cmdRead(cfg, post) {
   return results;
 }
 
+async function runOnce(cfg, why) {
+  console.log(`[${nowET()} ET] ${why}`);
+  try {
+    await ensureTradingView(cfg);
+    await cmdRead(cfg, true);
+    return true;
+  } catch (e) {
+    console.error('  run failed:', e.message);
+    await reportFailure(cfg, e.message);
+    return false;
+  }
+}
+
 async function cmdWatch(cfg) {
+  const etNow = () => new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const tradingSlot = et => {
+    const hhmm = et.toTimeString().slice(0, 5), day = et.getDay();
+    return hhmm >= '17:00' ? (day >= 0 && day <= 4) : (day >= 1 && day <= 5);
+  };
+  if (cfg.mode === 'update') {
+    console.log(`levels-relay ${VERSION} watching for MenthorQ updates (every ${cfg.update_check_minutes} min, ` +
+                `${cfg.update_windows_et.map(w => w.join('-')).join(' and ')} ET). Ctrl+C to stop.`);
+    const statePath = join(HERE, 'output', 'last_stamp.txt');
+    let last = existsSync(statePath) ? readFileSync(statePath, 'utf8').trim() : '';
+    for (;;) {
+      const et = etNow(), hhmm = et.toTimeString().slice(0, 5);
+      if (tradingSlot(et) && cfg.update_windows_et.some(([a, b]) => hhmm >= a && hhmm <= b)) {
+        try {
+          await ensureTradingView(cfg);
+          const stamp = await currentStamp(cfg);
+          if (stamp && stamp !== last) {
+            if (await runOnce(cfg, `MenthorQ updated (${stamp}): posting`)) {
+              last = stamp;
+              mkdirSync(join(HERE, 'output'), { recursive: true });
+              writeFileSync(statePath, stamp);
+            }
+          }
+        } catch (e) { console.error(`[${hhmm} ET] check failed:`, e.message); }
+      }
+      await sleep(cfg.update_check_minutes * 60000);
+    }
+  }
   console.log(`levels-relay ${VERSION} watching. Posts at ${cfg.schedule_et.join(', ')} ET (mornings Mon-Fri, evenings Sun-Thu). Ctrl+C to stop.`);
   const done = new Set();
   for (;;) {
-    const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-    const hhmm = et.toTimeString().slice(0, 5), day = et.getDay(), key = et.toDateString() + hhmm;
-    const evening = hhmm >= '17:00';
-    const tradingDay = evening ? (day >= 0 && day <= 4) : (day >= 1 && day <= 5);
-    if (cfg.schedule_et.includes(hhmm) && tradingDay && !done.has(key)) {
+    const et = etNow(), hhmm = et.toTimeString().slice(0, 5), key = et.toDateString() + hhmm;
+    if (cfg.schedule_et.includes(hhmm) && tradingSlot(et) && !done.has(key)) {
       done.add(key);
-      try { await cmdRead(cfg, true); } catch (e) { console.error(`[${hhmm} ET] run failed:`, e.message); }
+      await runOnce(cfg, `scheduled post (${hhmm} ET)`);
     }
     await sleep(20000);
   }
@@ -381,7 +518,7 @@ const cmd = process.argv[2] || 'read';
 if (cmd === 'selftest') cmdSelftest();
 else {
   const cfg = loadConfig();
-  const run = { check: cmdCheck, dump: cmdDump, read: c => cmdRead(c, false), post: c => cmdRead(c, true), watch: cmdWatch }[cmd];
+  const run = { check: cmdCheck, status: cmdStatus, dump: cmdDump, read: c => cmdRead(c, false), post: c => cmdRead(c, true), watch: cmdWatch }[cmd];
   if (!run) { console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('*/')[0]); process.exit(2); }
   run(cfg).catch(e => { console.error('Error:', e.message); process.exit(1); });
 }
