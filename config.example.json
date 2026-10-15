@@ -1,0 +1,22 @@
+{
+  "webhook_url": "PASTE_YOUR_DISCORD_WEBHOOK_URL_HERE",
+  "webhook_name": "Option Levels",
+
+  "studies": {
+    "eod": "MenthorQ Gamma Levels EOD",
+    "intraday": "MenthorQ Gamma Levels Intraday"
+  },
+
+  "symbols": {
+    "NQ": "CME_MINI:NQ1!",
+    "ES": "CME_MINI:ES1!",
+    "GC": "COMEX:GC1!",
+    "OIL": "NYMEX:CL1!",
+    "SILVER": "COMEX:SI1!"
+  },
+
+  "schedule_et": ["08:05", "20:05"],
+  "layout": "",
+  "port": 9222,
+  "settle_seconds": 25
+}

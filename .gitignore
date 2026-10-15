@@ -1,0 +1,6 @@
+# your private settings (contains the Discord webhook URL)
+config.json
+# run history
+output/
+.DS_Store
+node_modules/
