@@ -1,36 +1,59 @@
 # Troubleshooting
 
+Start with `node levels-relay.mjs status`: it says whether TradingView is live, which MenthorQ update times are on the chart, whether a newer version is waiting, and when the last post was. Problems are also logged in `output/failures.log`.
+
+## Nothing was posted
+
+**"…levels are from 2026-10-14 16:45 EST, not today's"**
+The chart still has the previous MenthorQ version. Click the **purple ⟳** next to each MenthorQ indicator's name on the levels tab (*Update*). If there's no ⟳, quit and reopen TradingView, then look again. MenthorQ ships new levels as new indicator versions, and TradingView only loads them after that click ([why](MENTHORQ.md#the-catch-new-levels-need-an-update-click)). Then check that *Show Timestamp* and the table are still on, since updates can reset settings.
+
+**"…shows no 'Last Update' time"**
+Turn on **Show Timestamp** in the indicator's settings on the levels tab. Without it, the tool can't tell new levels from old ones.
+
+**"ES: the indicator didn't finish loading" / "…don't fit the chart price" / "same numbers as NQ"**
+The chart didn't redraw properly for that market, so the tool refused rather than risk posting another market's levels. It retries in 5, 10, then 20 minutes. If it keeps happening, raise `settle_seconds` (e.g. 40) in `config.json`.
+
+**"only 12/19 EOD … levels found"**
+Some level names weren't recognized. Run `node levels-relay.mjs learn`. It lists names it doesn't know. Turn off *Short Name* in the indicator settings, or add the names under `aliases` in `config.json`.
+
+**"MenthorQ shows 'No Levels for this Ticker'"**
+MenthorQ doesn't cover that symbol, at least today. Set it to `""` under `symbols` in `config.json` to stop posting that market, or check the symbol (e.g. `NYMEX:CL1!`).
+
+**"these exact levels were already posted"**
+They went out earlier. To post again anyway: `node levels-relay.mjs post --force`.
+
+**An ℹ️ "no morning levels were posted" note in #modlog**
+The window closed without fresh levels. The note says why: TradingView was closed or disconnected, the update click didn't happen, or the timestamp is off.
+
+## TradingView
+
 **"TradingView isn't reachable on port 9222"**
 TradingView wasn't started with the debug port. Quit it fully (Windows: right-click the tray icon → Exit), then start it with `start-tradingview.bat` / `start-tradingview.command`.
 
 **"Session disconnected" / the chart is frozen**
-TradingView streams to one device at a time; another device (often your phone) opened it more recently. Click **Connect** in this TradingView, then run again. To have the watcher do this by itself, set `"take_back_session": true` (it bumps your other device for about a minute).
+Another *computer* opened TradingView more recently and has the live session. (A phone doesn't cause this.) Click **Connect** on this computer when it suits you. The tool doesn't do it for you unless `allow_restart` is on.
 
-**"No MenthorQ indicator on the active chart"**
-Run `node levels-relay.mjs check`, find the MenthorQ indicators in the list, and put part of their exact names into `config.json` → `studies.eod` / `studies.intraday`.
+**"The levels tab (layout …) isn't open"**
+Open that tab in TradingView, or run `node levels-relay.mjs tabs` to see what's open and fix `layout` in `config.json`.
 
-**A market shows "EOD 12/19 on chart"**
-MenthorQ doesn't always publish every level (e.g. GEX 6–10 on quieter days). Missing ones are `0`, which the indicator skips. If a level IS on your chart but came out `0`, run `node levels-relay.mjs dump` on that market and look at the label text. Its name may be spelled in a way the parser doesn't know yet.
+**"No MenthorQ indicator on the levels tab"**
+Run `node levels-relay.mjs learn`. It finds the indicators and suggests the names for `config.json` (`learn --apply` writes them). If MenthorQ renamed them (possible around TradingView's Nov 1, 2026 invite-only change), this is the fix.
 
-**A number is slightly different from the chart**
-The tool reads the exact value the indicator drew. If your chart's price scale shows a rounded number, trust the tool. If it's clearly a different level, `dump` that market and compare.
+**"TradingView didn't answer within 30s"**
+TradingView is frozen or very busy. Quit and reopen it. Nothing was posted.
+
+## Discord
 
 **Discord said 401 / 404**
 The webhook URL is wrong or was deleted. Make a new one (Channel settings → Integrations → Webhooks) and paste it into `config.json`.
 
-**The watcher didn't post**
-- Is the watch window still open, or was autostart installed?
-- Was TradingView running with the debug port at that time?
-- `schedule_et` uses **Eastern** time. Mornings post Mon–Fri, evenings Sun–Thu.
+## The watcher
 
-**A ⚠️ "couldn't post the levels" message showed up in #modlog**
-That's the watcher reporting a failed run; the reason is in the message. (These only ever go to `modlog_webhook_url`, never to the levels channel. Without one, they're in `output/failures.log`.) The most common ones:
-- *Session disconnected:* see above.
-- *TradingView did not come up:* TradingView couldn't start. Open it with the start script once and check that it's signed in.
-- *No MenthorQ indicator:* the chart that opened doesn't have MenthorQ on it. Open the right layout, or set `layout` in `config.json`.
+**It doesn't seem to run**
+- Did auto-start get installed? Mac: `launchctl list | grep levels-relay`. Windows: a minimized "levels-relay" window.
+- `output/watch.log` shows what it's doing.
+- Is the computer awake? (Windows: Settings → System → Power → Sleep: Never. The Mac auto-start keeps it awake.)
+- Is TradingView open with the levels tab, and signed in? The tool never signs in for you.
 
-
-**Nothing posted while I was away**
-- Is the computer awake? (Windows: Settings → System → Power → Sleep: Never.)
-- Is the watcher running? `install-autostart` starts it at login, and `node levels-relay.mjs status` checks the chart.
-- Is TradingView signed in? The tool can start TradingView, but it can't sign in for you.
+**It posted at a different time than expected**
+It posts as soon as fresh levels are on the chart, once per window. Change `windows` in `config.json` to move the windows, or use `"mode": "schedule"` for fixed times.

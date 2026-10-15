@@ -3,18 +3,26 @@
   "webhook_name": "Option Levels",
   "modlog_webhook_url": "PASTE_A_WEBHOOK_FROM_YOUR_MODLOG_CHANNEL_HERE (optional)",
 
-  "mode": "update",
-  "update_windows_et": [["07:30", "11:30"], ["19:00", "23:00"]],
-  "update_check_minutes": 3,
-  "schedule_et": ["08:05", "20:05"],
+  "layout": "",
 
-  "start_tradingview": true,
-  "take_back_session": false,
+  "mode": "update",
+  "windows": [
+    { "name": "morning", "from": "07:45", "to": "11:30", "wait_for": "intraday", "nudge_after": "08:20" },
+    { "name": "evening", "from": "19:00", "to": "23:30", "wait_for": "eod", "nudge_after": "19:45" }
+  ],
+  "check_every_minutes": 2,
+  "schedule_et": ["08:20", "19:45"],
+
+  "start_tradingview": false,
+  "allow_restart": false,
+  "notify_desktop": true,
+  "notify_missed_window": true,
 
   "studies": {
     "eod": "MenthorQ Gamma Levels EOD",
     "intraday": "MenthorQ Gamma Levels Intraday"
   },
+  "aliases": {},
 
   "symbols": {
     "NQ": "CME_MINI:NQ1!",
@@ -24,7 +32,8 @@
     "SILVER": "COMEX:SI1!"
   },
 
-  "layout": "",
+  "min_levels": 15,
   "port": 9222,
-  "settle_seconds": 25
+  "settle_seconds": 25,
+  "timeout_seconds": 30
 }

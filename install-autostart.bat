@@ -13,17 +13,15 @@ if not exist config.json (
   pause
   exit /b 1
 )
-node levels-relay.mjs validate || (
+node levels-relay.mjs validate --watch || (
   pause
   exit /b 1
 )
 set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 (
   echo @echo off
-  echo cd /d "%~dp0"
-  echo start "levels-relay" /min cmd /c "node levels-relay.mjs watch ^>^> output\watch.log 2^>^&1"
+  echo start "levels-relay" /min "%~dp0watch-loop.bat"
 ) > "%STARTUP%\levels-relay.bat"
-if not exist output mkdir output
 echo Done. The watcher will start minimized every time you log in. Starting it now as well...
-start "levels-relay" /min cmd /c "node levels-relay.mjs watch >> output\watch.log 2>&1"
+start "levels-relay" /min "%~dp0watch-loop.bat"
 pause
