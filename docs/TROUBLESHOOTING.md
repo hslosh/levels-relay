@@ -27,6 +27,12 @@ The window closed without fresh levels. The note says why: TradingView was close
 
 ## TradingView
 
+**Adding an indicator does nothing**
+Your TradingView plan limits how many indicators one chart can have. The levels tab needs room for the two MenthorQ indicators, so remove others from that tab.
+
+**Changes to the levels tab disappeared**
+After TradingView reloads or reopens, a tab comes back the way its layout was last *saved*. After you set up the levels tab, save the layout.
+
 **"TradingView isn't reachable on port 9222"**
 TradingView wasn't started with the debug port. Quit it fully (Windows: right-click the tray icon → Exit), then start it with `start-tradingview.bat` / `start-tradingview.command`.
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.4
+- Fixed: the "newer MenthorQ version is out" check could read a cached answer and never notice a new version (found by publishing a real update of a test indicator). It now always asks fresh.
+- Docs: the levels tab needs two free indicator slots (TradingView plans limit indicators per chart), and a TradingView reload brings a tab back to its last *saved* layout.
+
 ## 1.2.3
 First run on real TradingView (with stand-in indicators that draw what MenthorQ draws). Fixed three things the fake TradingView couldn't show:
 - **Tables were invisible.** TradingView stores table cells one level shallower than labels and lines, so the Key Levels table and the "Last Update" box were never read. They are now. Every cell also carries its table id, so the timestamp box can't mix with table rows.

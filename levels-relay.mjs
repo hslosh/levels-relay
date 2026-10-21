@@ -30,7 +30,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VERSION = '1.2.3';
+const VERSION = '1.2.4';
 
 // ---------------------------------------------------------------- config
 const DEFAULTS = {
@@ -285,7 +285,8 @@ const SET_VISIBLE_JS = (ids, on) => `(function(){ var c = ${CHART}; var n = 0;
 // Asks TradingView (the same way its own app does) for the newest published version of each script.
 const VERSIONS_JS = sids => `(async function(){ var out = {}, sids = ${JSON.stringify(sids)};
   for (var i = 0; i < sids.length; i++) { try {
-    var r = await fetch('https://pine-facade.tradingview.com/pine-facade/versions/' + encodeURIComponent(sids[i]) + '/last', { credentials: 'include' });
+    // no-store + a unique URL: the browser caches this answer, which hid new versions in testing
+    var r = await fetch('https://pine-facade.tradingview.com/pine-facade/versions/' + encodeURIComponent(sids[i]) + '/last?t=' + Date.now(), { credentials: 'include', cache: 'no-store' });
     if (r.ok) { var j = await r.json(); var v = Array.isArray(j) ? j[j.length - 1] : j; out[sids[i]] = { version: v && v.version, created: v && v.created }; }
   } catch (e) {} }
   return out; })()`;
