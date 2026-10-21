@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1
+- `learn` now tests auto-update on **both** MenthorQ indicators (EOD and Intraday), since either could behave differently.
+- New test: EOD and Intraday both have new versions at once (the usual morning case). Both get loaded, one at a time, so one free indicator slot is enough.
+
 ## 1.3.0
 **New MenthorQ versions load by themselves** (`auto_update`, on by default). TradingView doesn't load a new version of an indicator on its own, and MenthorQ ships every update as a new version. When the watcher sees a newer version published, it adds that version on the levels tab, waits until it shows its "Last Update" time, removes the old one, and saves the layout. Then it posts. No click needed.
 - Safe by design: if the new version can't be added (no free indicator slot) or shows no timestamp with its default settings, it's removed again, the old one stays, #modlog gets one note, and you get the "click the purple ⟳" reminder instead. It never leaves a second copy behind.

@@ -206,6 +206,21 @@ await test('watcher, auto_update on: loads the new MenthorQ version by itself an
   });
 });
 
+await test('watcher, auto_update: EOD and Intraday both have new versions → both loaded, one free slot is enough', async () => {
+  const lv = makeTab({ stamps: { eod: '2026-10-13 19:21', intraday: '2026-10-13 16:45 EST' }, latestVersion: { eod: '9.0', intraday: '8.0' },
+    publishedStamps: { eod: '2026-10-13 22:27', intraday: '2026-10-14 08:00 EST' } });
+  await withTV([lv], async tv => {
+    const cfg = cfgFor(tv.port), st = { windows: {} }, lp = levelPosts().length;
+    let most = 0;   // the most indicators on the chart at once: never more than one extra
+    const timer = setInterval(() => { most = Math.max(most, lv.st.instances.length); }, 20);
+    R.sys.now = () => et('2026-10-14T08:05:00'); await R.watchTick(cfg, st, quiet);
+    clearInterval(timer);
+    eq(lv.st.instances.map(i => `${i.kind}:${i.version}`).sort(), ['eod:9.0', 'intraday:8.0'], 'both on their new versions, nothing else');
+    eq([most <= 3, levelPosts().length], [true, lp + 1], 'one extra slot at most; posted');
+    assert(/EOD 2026-10-13 22:27 · Intraday 2026-10-14 08:00 EST/.test(levelPosts().at(-1).body.content), 'post shows both new update times');
+  });
+});
+
 await test('watcher, auto_update fails safely: no timestamp on the new version → old kept, no duplicate, one note, reminder', async () => {
   const lv = makeTab({ stamps: { intraday: '2026-10-13 16:45 EST' }, latestVersion: { intraday: '8.0' }, noStampOnInsert: true });
   await withTV([lv], async tv => {

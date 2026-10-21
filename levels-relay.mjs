@@ -30,7 +30,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 
 // ---------------------------------------------------------------- config
 const DEFAULTS = {
@@ -930,15 +930,19 @@ async function cmdLearn(cfg, flags) {
     say(!v.newer, `${LABEL[k]}: chart has version ${v.chart}, newest published is ${v.latest}`,
       'Click the purple ⟳ next to the indicator name in the legend to load the newest levels.');
   }
-  if (cfg.auto_update && eod && seen.ids?.eod) {
-    // add a second copy of the EOD indicator, check it shows its time, remove it again
-    const c = await openTarget(target, 60000);
-    let r;
-    try { r = await c.evaluate(SWAP_JS(seen.ids.eod, eod.version, 25, true)); } catch (e) { r = { ok: false, why: e.message }; } finally { c.close(); }
-    profile.auto_update_test = r;
-    say(r.ok, `Auto-update: ${r.ok ? 'a fresh copy of the indicator loads and shows its "Last Update" time, so new MenthorQ versions can be loaded automatically' : `won't work here (${r.why})`}`,
-      /slot/.test(r.why || '') ? 'Remove another indicator from the levels tab so there is one free slot.'
-        : 'New versions will need the purple ⟳ click; the watcher sends a reminder. Or set "auto_update": false to silence this check.');
+  if (cfg.auto_update) {
+    // for each indicator: add a second copy, check it shows its time, remove it again
+    profile.auto_update_test = {};
+    for (const [k, s] of [['eod', eod], ['intraday', intra]]) {
+      if (!s || !seen.ids?.[k]) continue;
+      const c = await openTarget(target, 60000);
+      let r;
+      try { r = await c.evaluate(SWAP_JS(seen.ids[k], s.version, 25, true)); } catch (e) { r = { ok: false, why: e.message }; } finally { c.close(); }
+      profile.auto_update_test[k] = r;
+      say(r.ok, `Auto-update (${LABEL[k]}): ${r.ok ? 'a fresh copy loads and shows its "Last Update" time, so new versions can be loaded automatically' : `won't work (${r.why})`}`,
+        /slot/.test(r.why || '') ? 'Remove another indicator from the levels tab so there is one free slot.'
+          : `New ${LABEL[k]} versions will need the purple ⟳ click; the watcher sends a reminder.`);
+    }
   }
   info(snap.hidden ? 'This tab was in the background during the check, and reading still worked.'
     : 'This tab is in front right now. To confirm reads work while it\'s in the background, switch to another tab and run learn again.');
