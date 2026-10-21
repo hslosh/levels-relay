@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+**New MenthorQ versions load by themselves** (`auto_update`, on by default). TradingView doesn't load a new version of an indicator on its own, and MenthorQ ships every update as a new version. When the watcher sees a newer version published, it adds that version on the levels tab, waits until it shows its "Last Update" time, removes the old one, and saves the layout. Then it posts. No click needed.
+- Safe by design: if the new version can't be added (no free indicator slot) or shows no timestamp with its default settings, it's removed again, the old one stays, #modlog gets one note, and you get the "click the purple ⟳" reminder instead. It never leaves a second copy behind.
+- `learn` tests it on day one: it adds a temporary second copy, checks it, and removes it again.
+- Tested on real TradingView with a published stand-in indicator, swapping versions in both directions, with the tab in front and in the background.
+
 ## 1.2.4
 - Fixed: the "newer MenthorQ version is out" check could read a cached answer and never notice a new version (found by publishing a real update of a test indicator). It now always asks fresh.
 - Docs: the levels tab needs two free indicator slots (TradingView plans limit indicators per chart), and a TradingView reload brings a tab back to its last *saved* layout.

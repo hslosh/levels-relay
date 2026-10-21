@@ -30,7 +30,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VERSION = '1.2.4';
+const VERSION = '1.3.0';
 
 // ---------------------------------------------------------------- config
 const DEFAULTS = {
@@ -70,6 +70,10 @@ const DEFAULTS = {
   // live session away from you. See README → "Optional: let it manage TradingView".
   start_tradingview: false,
   allow_restart: false,
+  // Load new MenthorQ versions by itself: add the new version on the levels tab,
+  // check it shows its "Last Update" time, then remove the old one. Falls back to
+  // a "click the purple ⟳" reminder if that doesn't work.
+  auto_update: true,
   notify_desktop: true,
   notify_missed_window: true,
   settle_seconds: 25,
@@ -292,6 +296,38 @@ const VERSIONS_JS = sids => `(async function(){ var out = {}, sids = ${JSON.stri
   return out; })()`;
 
 const mqMatch = cfg => ['menthorq', cfg.studies.eod, cfg.studies.intraday];
+// Swap a MenthorQ indicator on the levels tab for another published version: add the
+// new one, wait until it shows its "Last Update" time, then remove the old one and
+// save the layout. If the new one never shows a time (or can't be added), it's removed
+// again and the old one stays. keepOld: true only tests that this works (for `learn`).
+const SWAP_JS = (studyId, version, waitSeconds, keepOld) => `(async function(){
+  var C = ${CHART}, cw = C._chartWidget;
+  function all(){ return cw.model().model().dataSources().filter(function(s){ return s.metaInfo; }); }
+  function stampOf(s){ var t = null;
+    try { var c = s._graphics._primitivesCollection.dwgtablecells.get('tableCells'); if (c && !c._primitivesDataById && c.get) c = c.get(false);
+      c._primitivesDataById.forEach(function(v){ if (/Last Update/i.test(v.t || '')) t = v.t; }); } catch(e) {}
+    return t; }
+  var old = all().filter(function(s){ return s.id && s.id() === ${JSON.stringify(studyId)}; })[0];
+  if (!old) return { ok: false, why: 'the indicator to update is no longer on the levels tab' };
+  var sid = old.metaInfo().scriptIdPart;
+  var added = null;
+  try { added = await cw.insertStudy({ type: 'pine', pineId: sid, pineVersion: ${JSON.stringify(version)} }, []); } catch(e) {}
+  var neu = all().filter(function(s){ return s !== old && s.metaInfo().scriptIdPart === sid && s.metaInfo().pine && s.metaInfo().pine.version === ${JSON.stringify(version)}; }).pop();
+  if (!added || !neu) return { ok: false, why: "TradingView didn't add the new version (is there a free indicator slot on the levels tab?)" };
+  var stamp = null;
+  try {
+    for (var i = 0; i < ${waitSeconds} && !stamp; i++) { await new Promise(function(r){ setTimeout(r, 1000); }); stamp = stampOf(neu); }
+  } finally {
+    // never leave a second copy behind: keep the new one only if it checked out
+    if (!stamp || ${keepOld ? 'true' : 'false'}) { try { C.removeEntity(neu.id()); } catch(e) {} }
+  }
+  if (!stamp) return { ok: false, why: 'the new version shows no "Last Update" time with its default settings, so the old one was kept' };
+  if (${keepOld ? 'true' : 'false'}) return { ok: true, stamp: stamp, test: true };
+  C.removeEntity(old.id());
+  var saved = await new Promise(function(ok){ try { window.TradingViewApi.saveChartToServer(function(){ ok(true); }, function(){ ok(false); }); } catch(e) { ok(false); } setTimeout(function(){ ok(false); }, 10000); });
+  return { ok: true, stamp: stamp, saved: saved };
+})()`;
+
 const symbolRoot = s => String(s || '').split(':').pop();
 
 async function setSymbol(cdp, sym) {
@@ -641,7 +677,8 @@ async function look(cfg, { versions: wantVersions = false } = {}) {
         newer: num(v[s.sid].version) > num(s.version) } : null;
       versions = { eod: one(eod), intraday: one(intra) };
     } catch { /* version lookup is best-effort */ }
-    return { state: 'live', snap, stamps, versions, hiddenStudies: [eod, intra].filter(s => !s.visible).map(s => s.name) };
+    return { state: 'live', snap, stamps, versions, ids: { eod: eod.id, intraday: intra.id },
+             hiddenStudies: [eod, intra].filter(s => !s.visible).map(s => s.name) };
   } catch (e) {
     return { state: 'error', error: e.message };
   } finally { cdp?.close(); }
@@ -652,6 +689,26 @@ const STATE_TEXT = {
   'no-tab': 'missing the levels tab', frozen: 'disconnected ("Session disconnected")', 'no-menthorq': 'missing the MenthorQ indicators on the levels tab',
   error: 'not answering',
 };
+
+// Load any newer MenthorQ version on the levels tab (auto_update). Returns what it did.
+async function updateMenthorQ(cfg, seen, log = console.log) {
+  const done = [];
+  for (const k of ['eod', 'intraday']) {
+    const v = seen.versions?.[k];
+    if (!v?.newer || !seen.ids?.[k]) continue;
+    const probe = await connect(cfg);
+    const target = probe.target;
+    probe.close();
+    const cdp = await openTarget(target, 60000);   // a swap can take ~20s
+    try {
+      log(`  loading the new MenthorQ ${LABEL[k]} version (${v.chart} → ${v.latest})`);
+      const r = await cdp.evaluate(SWAP_JS(seen.ids[k], v.latest, 25, false));
+      done.push({ kind: k, ...r });
+      log(r.ok ? `  ${LABEL[k]} updated (${(r.stamp || '').replace(/\s+/g, ' ').trim()})${r.saved ? '' : '; layout not saved yet'}` : `  ${LABEL[k]} not updated: ${r.why}`);
+    } finally { cdp.close(); }
+  }
+  return done;
+}
 
 // Only acts if config.json allows it. Returns true if it did something.
 async function manageTradingView(cfg, state, log) {
@@ -693,7 +750,9 @@ function missedText(w, ws) {
     : ws.lastState && ws.lastState !== 'live' ? `TradingView on the relay computer was ${STATE_TEXT[ws.lastState] || ws.lastState}`
     : ws.noStamp ? `the ${LABEL[w.wait_for]} indicator shows no "Last Update" time (turn on "Show Timestamp")`
     : `the ${LABEL[w.wait_for]} levels on the chart never showed today's date (last seen: ${ws.lastStamps || 'nothing'}). ` +
-      'TradingView only loads new MenthorQ levels after someone clicks the purple ⟳ update icon on the indicator';
+      (ws.autoUpdateFailed ? `Loading the new version by itself didn't work (${ws.autoUpdateFailed})`
+        : ws.autoOff ? 'TradingView only loads new MenthorQ levels after someone clicks the purple ⟳ update icon on the indicator'
+        : 'MenthorQ published no newer version in that time');
   return `no ${w.name} levels were posted (${w.from}–${w.to} ET): ${why}.`;
 }
 
@@ -714,6 +773,7 @@ async function watchTick(cfg, st, log = console.log) {
   const key = `${et.date} ${w.name}`;
   const ws = (st.windows[key] ||= {});
   ws.seen = true;
+  ws.autoOff = !cfg.auto_update;
   if (ws.posted || ws.gaveUp || (ws.retryAt && et.ms < ws.retryAt)) return st;
 
   let seen = await look(cfg);
@@ -723,11 +783,27 @@ async function watchTick(cfg, st, log = console.log) {
   }
   ws.lastState = seen.state;
   if (seen.state !== 'live') return st;        // closed, frozen or busy: stay quiet, try again later
+  if (cfg.auto_update && !ws.autoUpdateFailed) {
+    // a newer MenthorQ version is published but not loaded: load it on the levels tab
+    const withVersions = await look(cfg, { versions: true });
+    if (['eod', 'intraday'].some(k => withVersions.versions?.[k]?.newer)) {
+      try {
+        const done = await updateMenthorQ(cfg, withVersions, log);
+        const failed = done.filter(d => !d.ok);
+        if (failed.length) {
+          ws.autoUpdateFailed = failed.map(d => `${LABEL[d.kind]}: ${d.why}`).join('; ');
+          await report(cfg, `couldn't load the new MenthorQ version by itself (${ws.autoUpdateFailed}). Click the purple ⟳ on the levels tab instead.`, { notice: true });
+        }
+      } catch (e) { ws.autoUpdateFailed = e.message; log(`  auto-update failed: ${e.message}`); }
+      seen = await look(cfg);
+      if (seen.state !== 'live') return st;
+    }
+  }
   const s = seen.stamps[w.wait_for];
   ws.lastStamps = stampsText(seen.stamps);
   if (!s) { ws.noStamp = true; return st; }
   if (s.date < et.date) {                      // today's levels aren't on the chart yet
-    if (!w.nudge_after || et.hhmm < w.nudge_after || ws.nudged) return st;
+    if (!w.nudge_after || et.hhmm < w.nudge_after || ws.nudged || (cfg.auto_update && !ws.autoUpdateFailed)) return st;
     const v = (await look(cfg, { versions: true })).versions?.[w.wait_for];
     if (v?.newer) {
       ws.nudged = true;
@@ -854,6 +930,16 @@ async function cmdLearn(cfg, flags) {
     say(!v.newer, `${LABEL[k]}: chart has version ${v.chart}, newest published is ${v.latest}`,
       'Click the purple ⟳ next to the indicator name in the legend to load the newest levels.');
   }
+  if (cfg.auto_update && eod && seen.ids?.eod) {
+    // add a second copy of the EOD indicator, check it shows its time, remove it again
+    const c = await openTarget(target, 60000);
+    let r;
+    try { r = await c.evaluate(SWAP_JS(seen.ids.eod, eod.version, 25, true)); } catch (e) { r = { ok: false, why: e.message }; } finally { c.close(); }
+    profile.auto_update_test = r;
+    say(r.ok, `Auto-update: ${r.ok ? 'a fresh copy of the indicator loads and shows its "Last Update" time, so new MenthorQ versions can be loaded automatically' : `won't work here (${r.why})`}`,
+      /slot/.test(r.why || '') ? 'Remove another indicator from the levels tab so there is one free slot.'
+        : 'New versions will need the purple ⟳ click; the watcher sends a reminder. Or set "auto_update": false to silence this check.');
+  }
   info(snap.hidden ? 'This tab was in the background during the check, and reading still worked.'
     : 'This tab is in front right now. To confirm reads work while it\'s in the background, switch to another tab and run learn again.');
   const rule = freshnessRule(cfg, etParts(sys.now()));
@@ -924,13 +1010,13 @@ async function cmdStatus(cfg) {
     }
     for (const k of ['eod', 'intraday']) {
       const v = seen.versions?.[k];
-      if (v?.newer) console.log(`⚠️  A newer ${LABEL[k]} version is published (${v.chart} → ${v.latest}): click the purple ⟳ next to the indicator name.`);
+      if (v?.newer) console.log(`⚠️  A newer ${LABEL[k]} version is published (${v.chart} → ${v.latest}): ${cfg.auto_update ? 'the watcher loads it during the next window' : 'click the purple ⟳ next to the indicator name'}.`);
     }
     if (seen.hiddenStudies?.length) console.log(`⚠️  Hidden on the levels tab (they don't update while hidden): ${seen.hiddenStudies.join(', ')}`);
   }
   const st = loadState(cfg);
   console.log(`Last post: ${st?.last_posted ? `${st.last_posted.at} (${st.last_posted.stamps})` : 'none yet'}`);
-  console.log(`Mode: ${cfg.mode} · levels tab set: ${!!cfg.layout} · start_tradingview: ${cfg.start_tradingview} · allow_restart: ${cfg.allow_restart} · ` +
+  console.log(`Mode: ${cfg.mode} · levels tab set: ${!!cfg.layout} · auto_update: ${cfg.auto_update} · start_tradingview: ${cfg.start_tradingview} · allow_restart: ${cfg.allow_restart} · ` +
               `levels webhook set: ${!!cfg.webhook_url} · modlog webhook set: ${!!cfg.modlog_webhook_url}`);
 }
 
@@ -1091,5 +1177,5 @@ if (isMain) main(process.argv.slice(2));
 export {
   VERSION, DEFAULTS, MENTHORQ, ORDER, TICKERS, sys, normalizeConfig, loadConfig, namesIn, unknownIn, parseStamp, fromTable, fromLabels,
   parseSession, problemsWith, freshnessRule, activeWindow, etParts, readAll, look, postLevels, watchTick, missedText, render, stampsOf,
-  loadState, saveState, RefusedError, FrozenError,
+  loadState, saveState, RefusedError, FrozenError, SWAP_JS,
 };

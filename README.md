@@ -35,12 +35,12 @@ ES
 
 MenthorQ publishes **Intraday** levels from **08:00 ET** and **EOD** levels around **19:20 ET** (and again near 22:30 ET). The relay posts the **morning** set once today's Intraday levels are on the chart, and the **evening** set once today's EOD levels are. Details and sources: [docs/MENTHORQ.md](docs/MENTHORQ.md).
 
-**The one thing it can't do for you:** TradingView only loads new MenthorQ levels after someone clicks the **purple ⟳** next to the indicator name (MenthorQ ships each update as a new version of the indicator). So the routine is:
+MenthorQ ships each update as a **new version of the indicator**, and TradingView doesn't load new versions by itself. The relay does it for you on the levels tab: it adds the new version, checks that it shows today's "Last Update" time, removes the old one, and saves the layout (`auto_update`, on by default). So the routine is:
 
 1. Leave TradingView open on the computer, with the levels tab.
-2. When new levels are out, the relay pops up a reminder: *"New MenthorQ levels are out… click the purple ⟳"*.
-3. Click ⟳ on the two MenthorQ indicators in the levels tab (if the icon isn't there yet, close and reopen TradingView).
-4. Within a couple of minutes the levels are in Discord, and you get a "posted ✅" notification.
+2. That's it. When MenthorQ publishes, the levels are in Discord within a few minutes, and you get a "posted ✅" notification.
+
+If loading the new version ever fails (for example, no free indicator slot on the levels tab), the old one stays, #modlog gets a note, and you get a reminder to click the **purple ⟳** next to the indicator name instead.
 
 Phone traders: charting and trading on your phone doesn't affect the relay, and the relay doesn't affect your phone.
 
@@ -75,7 +75,7 @@ Claude reads [`CLAUDE.md`](CLAUDE.md) and walks you through it step by step. It 
 2. **Create Discord webhooks:** one in the channel the levels go to, and one in a private channel such as #modlog for problem notices. *Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL.* (An invite link won't work; it has to be the webhook URL.)
 3. **Make your config:** copy `config.example.json` to `config.json`, then paste the two URLs into `webhook_url` and `modlog_webhook_url`.
 4. **Start TradingView with the reader enabled.** Fully quit TradingView (on Windows, also check the system tray), then double-click `start-tradingview.bat` (Windows) or `start-tradingview.command` (Mac).
-5. **Make the levels tab:** in TradingView, open a new tab, create a new layout and **save it with a name** (e.g. `levels-relay`). Add **MenthorQ Gamma Levels EOD** and **MenthorQ Gamma Levels Intraday**, keep both visible, with *Show Timestamp* and the table on. It's fine if the two tables overlap. Don't trade on this tab.
+5. **Make the levels tab:** in TradingView, open a new tab, create a new layout and **save it with a name** (e.g. `levels-relay`). Add **MenthorQ Gamma Levels EOD** and **MenthorQ Gamma Levels Intraday**, keep both visible, with *Show Timestamp* and the table on. It's fine if the two tables overlap. Leave **one indicator slot free** (auto-update briefly needs it). Don't trade on this tab.
 6. **Check it,** in a terminal opened in this folder:
    ```
    node levels-relay.mjs selftest            # checks the parser, no TradingView needed
@@ -89,7 +89,7 @@ Claude reads [`CLAUDE.md`](CLAUDE.md) and walks you through it step by step. It 
 
 1. **Leave the computer on with TradingView open** on the levels tab. (Windows: *Settings → System → Power → Sleep: Never*; screen off is fine. On a Mac, the auto-start keeps it awake.)
 2. **Run the auto-start once:** `install-autostart.bat` (Windows) or `install-autostart.command` (Mac). The watcher runs in the background and starts at every login.
-3. **That's it.** Click the purple ⟳ when it reminds you, and it posts.
+3. **That's it.** New MenthorQ versions are loaded and posted by themselves.
 
 The watcher checks the levels tab every 2 minutes during the windows (07:45–11:30 and 19:00–23:30 ET). Those checks are read-only: it only switches symbols when it's actually posting. If a window passes without a post, #modlog gets one note saying why.
 
@@ -127,7 +127,8 @@ Every run saves a copy in `output/`; `output/latest.txt` is always the newest go
 | `schedule_et` | Post times in `schedule` mode (24h, Eastern) | `["08:20", "19:45"]` |
 | `start_tradingview` | Open TradingView (in the background) if it's closed | `false` |
 | `allow_restart` | Restart TradingView when needed (see above) | `false` |
-| `notify_desktop` | "Click ⟳" and "posted ✅" pop-ups on this computer | `true` |
+| `auto_update` | Load new MenthorQ versions on the levels tab by itself (falls back to a "click ⟳" reminder) | `true` |
+| `notify_desktop` | "Posted ✅" (and fallback "click ⟳") pop-ups on this computer | `true` |
 | `notify_missed_window` | Tell #modlog when a window passes without a post | `true` |
 | `studies.eod` / `studies.intraday` | Part of the MenthorQ indicator names | `MenthorQ Gamma Levels EOD` / `… Intraday` |
 | `symbols` | Chart symbol per market; `""` turns a market off | NQ1!, ES1!, GC1!, CL1!, SI1! |

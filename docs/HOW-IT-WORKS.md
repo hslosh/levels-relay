@@ -12,7 +12,7 @@ During each window (morning 07:45–11:30, evening 19:00–23:30 ET) the watcher
 - the MenthorQ **"Last Update"** times (`Last Update: 2026-10-14 08:00 EST`);
 - whether TradingView has a **newer published version** of each indicator than the one loaded (it asks TradingView the same way the app does).
 
-A window posts **once**, when its indicator (Intraday in the morning, EOD in the evening) shows **today's** date. If a newer version is out but not loaded, it shows one desktop reminder to click the purple ⟳. See [MENTHORQ.md](MENTHORQ.md) for why that click is needed.
+A window posts **once**, when its indicator (Intraday in the morning, EOD in the evening) shows **today's** date. If a newer MenthorQ version is published but not loaded, it loads it on the levels tab (add the new version → check its "Last Update" time → remove the old one → save the layout), then posts. If that fails, it keeps the old one and shows one desktop reminder to click the purple ⟳. See [MENTHORQ.md](MENTHORQ.md) for why new versions need loading.
 
 If TradingView is closed, frozen ("Session disconnected") or busy, the watcher stays quiet and tries again. It never starts or restarts TradingView unless `start_tradingview` / `allow_restart` allow it. When a window closes without a post, #modlog gets one note saying why.
 

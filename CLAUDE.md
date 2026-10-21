@@ -31,12 +31,13 @@ You're helping a trader set up **levels-relay**. It reads MenthorQ gamma levels 
    - **Unknown level names:** if "Short Name" is on, ask them to turn it off. Otherwise map each name in `config.json` → `aliases` (e.g. `"Gamma Flip": "HVL"`), using `node levels-relay.mjs dump` to see the raw text, and rerun `learn`.
    - **Different timestamp format:** if `learn` can't read the "Last Update" time but it's on the chart, `dump` and look at the text. Only then extend `MENTHORQ.stamp` in `levels-relay.mjs`, add a case to `selftest`, and run `selftest` plus `node test/run.mjs`.
    - **Converted levels "(SPX)":** ask them to turn off Levels Conversion on the levels tab.
-   - **Newer version published:** ask them to click the purple ⟳ next to the indicator name (if it isn't there, quit and reopen TradingView).
+   - **Newer version published:** that's fine; the watcher loads it by itself during the next window (`auto_update`).
+   - **Auto-update check failed:** if it says there's no free slot, ask them to remove another indicator from the levels tab. If the fresh copy shows no timestamp by default, explain that new versions will need the purple ⟳ click (the watcher sends a reminder).
    - If they can, ask them to switch to a different tab and run `learn` once more. That confirms reading works while the levels tab is in the background.
 7. **Every market:** `node levels-relay.mjs learn --markets` switches the **levels tab** through the 5 markets (about a minute) and puts it back. A market with "No Levels for this Ticker" gets turned off with `--apply`. Tell them which markets will be posted.
 8. **Read and compare:** `node levels-relay.mjs read`. Ask them to compare a few numbers per market with their chart (GEX 1, Call Resistance, HVL, 1D Max/Min). The order of the 38 numbers is in `docs/OUTPUT-FORMAT.md`. It also says whether `post` would refuse right now and why (e.g. the levels aren't today's yet).
 9. **First post:** only after they confirm. `node levels-relay.mjs post` (add `--force` only if they want to post levels that aren't today's), then check it arrived in Discord.
-10. **Hands-off (if step 1 fits):** explain the routine in two sentences. The relay reminds them when new MenthorQ levels are out. They click the purple ⟳ on the levels tab, and it posts within a couple of minutes, once per morning and evening. Then:
+10. **Hands-off (if step 1 fits):** explain the routine in two sentences. They leave TradingView open with the levels tab, and when MenthorQ publishes, the relay loads the new version on that tab by itself and posts within a few minutes, once per morning and evening. Only if that ever fails do they get a reminder to click the purple ⟳. Then:
     - Run `install-autostart.command` / `.bat` once. It checks the config first.
     - Ask before turning on `start_tradingview` (opens TradingView in the background if it's closed; fine on a computer they don't trade from) or `allow_restart` (quits and reopens TradingView; only on a computer nobody trades from, and never if they chart on a second computer).
     - Run `node levels-relay.mjs status` to confirm it's live and shows the update times.

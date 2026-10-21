@@ -153,10 +153,10 @@ await test('stale levels are refused; --force posts them; the same levels are ne
 });
 
 // ---------------------------------------------------------------- the watcher, one simulated day
-await test('watcher: one real trading day (stale → nudge → update click → one post → missed-window notice)', async () => {
+await test('watcher, auto_update off: stale → reminder → update click → one post → missed-window notice', async () => {
   const lv = makeTab({ stamps: { eod: '2026-10-13 22:27', intraday: '2026-10-13 16:45 EST' } });
   await withTV([lv], async tv => {
-    const cfg = cfgFor(tv.port);
+    const cfg = cfgFor(tv.port, { auto_update: false });
     const st = { windows: {} };
     const at = async s => { R.sys.now = () => et(s); return R.watchTick(cfg, st, quiet); };
     const lp = levelPosts().length, mp = modlogPosts().length;
@@ -187,6 +187,48 @@ await test('watcher: one real trading day (stale → nudge → update click → 
     eq(modlogPosts().length, mp + 1, 'one missed-window notice after it closes');
     assert(/no evening levels.*disconnected/.test(modlogPosts().at(-1).body.content), modlogPosts().at(-1).body.content);
     assert(levelPosts().every(p => !/levels-relay:/.test(p.body.content)), 'no notices in the levels channel');
+  });
+});
+
+await test('watcher, auto_update on: loads the new MenthorQ version by itself and posts (no click)', async () => {
+  const lv = makeTab({ stamps: { eod: '2026-10-13 22:27', intraday: '2026-10-13 16:45 EST' }, publishedStamps: { intraday: '2026-10-14 08:00 EST' } });
+  await withTV([lv], async tv => {
+    const cfg = cfgFor(tv.port), st = { windows: {} }, lp = levelPosts().length;
+    calls.notify = [];
+    R.sys.now = () => et('2026-10-14T07:50:00'); await R.watchTick(cfg, st, quiet);
+    eq([levelPosts().length, lv.st.inserted], [lp, 0], 'nothing new published yet: no post, no update');
+    lv.st.latestVersion.intraday = '8.0';   // MenthorQ publishes the 08:00 levels
+    R.sys.now = () => et('2026-10-14T08:05:00'); await R.watchTick(cfg, st, quiet);
+    eq(levelPosts().length, lp + 1, 'posted in the same pass');
+    const intra = lv.st.instances.filter(i => i.kind === 'intraday');
+    eq([intra.length, intra[0].version, lv.st.saves >= 1], [1, '8.0', true], 'one Intraday indicator, on 8.0, layout saved');
+    assert(calls.notify.length === 1 && /posted/.test(calls.notify[0]), `notifications: ${calls.notify}`);
+  });
+});
+
+await test('watcher, auto_update fails safely: no timestamp on the new version → old kept, no duplicate, one note, reminder', async () => {
+  const lv = makeTab({ stamps: { intraday: '2026-10-13 16:45 EST' }, latestVersion: { intraday: '8.0' }, noStampOnInsert: true });
+  await withTV([lv], async tv => {
+    const cfg = cfgFor(tv.port, { settle_seconds: 4 }), st = { windows: {} }, mp = modlogPosts().length, lp = levelPosts().length;
+    calls.notify = [];
+    R.sys.now = () => et('2026-10-14T08:05:00'); await R.watchTick(cfg, st, quiet);
+    eq(lv.st.instances.map(i => i.id), ['st_eod', 'st_intraday'], 'only the original indicators remain');
+    eq([modlogPosts().length, levelPosts().length], [mp + 1, lp], 'one #modlog note, no levels post');
+    assert(/no "Last Update" time/.test(modlogPosts().at(-1).body.content), modlogPosts().at(-1).body.content);
+    R.sys.now = () => et('2026-10-14T08:25:00'); await R.watchTick(cfg, st, quiet);
+    R.sys.now = () => et('2026-10-14T08:27:00'); await R.watchTick(cfg, st, quiet);
+    eq([lv.st.inserted, modlogPosts().length], [1, mp + 1], 'not retried, note not repeated');
+    assert(calls.notify.length === 1 && /purple/.test(calls.notify[0]), `reminder: ${calls.notify}`);
+  });
+});
+
+await test('watcher, auto_update with no free indicator slot: old kept, note says why', async () => {
+  const lv = makeTab({ stamps: { intraday: '2026-10-13 16:45 EST' }, latestVersion: { intraday: '8.0' }, slotsFull: true });
+  await withTV([lv], async tv => {
+    const cfg = cfgFor(tv.port), st = { windows: {} }, mp = modlogPosts().length;
+    R.sys.now = () => et('2026-10-14T08:05:00'); await R.watchTick(cfg, st, quiet);
+    eq(lv.st.instances.length, 2, 'indicators unchanged');
+    assert(modlogPosts().length === mp + 1 && /free indicator slot/.test(modlogPosts().at(-1).body.content), 'note mentions the slot');
   });
 });
 

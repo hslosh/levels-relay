@@ -13,6 +13,7 @@
   "check_every_minutes": 2,
   "schedule_et": ["08:20", "19:45"],
 
+  "auto_update": true,
   "start_tradingview": false,
   "allow_restart": false,
   "notify_desktop": true,

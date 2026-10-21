@@ -54,25 +54,34 @@ export function makeTab(opts = {}) {
     latestVersion: { eod: '7.0', intraday: '7.0', ...(opts.latestVersion || {}) },
     lagMs: opts.lagMs || 0, stuck: new Set(opts.stuck || []), noLevels: new Set(opts.noLevels || []),
     frozen: !!opts.frozen, hang: !!opts.hang, hidden: !!opts.hidden, setSymbolCalls: [],
+    // auto-update: what a freshly added copy shows, and whether the chart has room for it
+    publishedStamps: { eod: '2026-10-15 22:27', intraday: '2026-10-15 08:00 EST', ...(opts.publishedStamps || {}) },
+    noStampOnInsert: !!opts.noStampOnInsert, slotsFull: !!opts.slotsFull, saves: 0, inserted: 0,
   };
+  // the two indicators on the chart; ones added later carry their own version and stamp
+  st.instances = st.menthorq ? [{ kind: 'eod', id: 'st_eod' }, { kind: 'intraday', id: 'st_intraday' }] : [];
   st.drawn = st.symbol.split(':').pop();
-  const study = kind => {
+  const study = inst => {
+    const kind = inst.kind;
     const desc = kind === 'eod' ? 'MenthorQ Gamma Levels EOD' : 'MenthorQ Gamma Levels Intraday';
+    const version = () => (inst.own ? inst.version : st.chartVersion[kind]);
+    const stamp = () => (inst.own ? inst.stamp : st.stamps[kind]);
+    const visible = () => (inst.own ? true : st.visible[kind]);
     return {
-      metaInfo: () => ({ description: desc, scriptIdPart: `PUB;mq${kind}`, pine: { version: st.chartVersion[kind] } }),
-      title: () => desc, id: () => `st_${kind}`,
-      properties: () => ({ visible: { value: () => st.visible[kind], setValue: v => { st.visible[kind] = v; } } }),
+      metaInfo: () => ({ description: desc, scriptIdPart: `PUB;mq${kind}`, pine: { version: version() } }),
+      title: () => desc, id: () => inst.id,
+      properties: () => ({ visible: { value: visible, setValue: v => { if (!inst.own) st.visible[kind] = v; } } }),
       get _graphics() {
         const t = ROOT_TO_T[st.drawn];
-        if (!st.visible[kind] || !t) return { _primitivesCollection: { dwglabels: coll([]), dwglines: coll([]), dwgtablecells: cellColl([]) } };
+        if (!visible() || !t) return { _primitivesCollection: { dwglabels: coll([]), dwglines: coll([]), dwgtablecells: cellColl([]) } };
         if (st.noLevels.has(t)) return { _primitivesCollection: { dwglabels: coll([{ t: 'No Levels for this Ticker', y: PRICES[t] }]), dwglines: coll([]), dwgtablecells: cellColl([]) } };
-        const d = draw(t, kind, st.stamps[kind]);
+        const d = draw(t, kind, stamp());
         return { _primitivesCollection: { dwglabels: coll(d.labels), dwglines: coll(d.lines), dwgtablecells: cellColl(d.cells) } };
       },
     };
   };
   const volume = { metaInfo: () => ({ description: 'Volume' }), title: () => 'Volume', id: () => 'vol', properties: () => ({ visible: { value: () => true } }) };
-  const sources = () => [volume, ...(st.menthorq ? [study('eod'), study('intraday')] : [])];
+  const sources = () => [volume, ...st.instances.map(study)];
   const chart = {
     symbol: () => st.symbol,
     setSymbol: sym => {
@@ -81,11 +90,21 @@ export function makeTab(opts = {}) {
       if (!st.stuck.has(ROOT_TO_T[root])) setTimeout(() => { st.drawn = root; }, st.lagMs);
     },
     getStudyById: id => ({ setVisible: v => { st.visible[id.replace('st_', '')] = v; } }),
-    _chartWidget: { model: () => ({
+    removeEntity: id => { st.instances = st.instances.filter(i => i.id !== id); },
+    _chartWidget: {
+      insertStudy: async ({ pineId, pineVersion }) => {
+        if (st.slotsFull) return null;
+        const kind = /mqeod/.test(pineId) ? 'eod' : 'intraday';
+        st.inserted++;
+        st.instances.push({ kind, id: `st_${kind}_${st.inserted}`, own: true, version: pineVersion, stamp: st.noStampOnInsert ? null : st.publishedStamps[kind] });
+        return {};
+      },
+      model: () => ({
       mainSeries: () => ({ bars: () => ({ last: () => ({ value: [0, 0, 0, 0, PRICES[ROOT_TO_T[st.symbol.split(':').pop()]] ?? null] }) }) }),
       model: () => ({ dataSources: sources }) }) },
   };
   const ctx = vm.createContext({
+    setTimeout,
     document: { get body() { return { innerText: st.frozen ? 'Session disconnected\nConnect' : 'chart' }; }, get visibilityState() { return st.hidden ? 'hidden' : 'visible'; } },
     fetch: async url => {
       const kind = /mqeod/.test(decodeURIComponent(url)) ? 'eod' : 'intraday';
@@ -93,7 +112,8 @@ export function makeTab(opts = {}) {
     },
   });
   ctx.window = ctx;
-  ctx.TradingViewApi = { _activeChartWidgetWV: { value: () => chart }, layoutId: () => st.id, layoutName: () => st.name };
+  ctx.TradingViewApi = { _activeChartWidgetWV: { value: () => chart }, layoutId: () => st.id, layoutName: () => st.name,
+    saveChartToServer: ok => { st.saves++; ok(); } };
   return { st, ctx };
 }
 

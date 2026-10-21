@@ -35,9 +35,10 @@ If the new version came out while TradingView was open, the icon may only appear
 What this means for `levels-relay`:
 
 - It **never posts levels older than today's** for the current window. It reads the "Last Update" time, not just the numbers.
-- It **can tell** when a newer version is published but not loaded yet (it asks TradingView the same way the app does). In that case it shows a desktop notification: *"New MenthorQ levels are out… click the purple ⟳"*, once per window.
-- It does **not** click the update icon or reload TradingView itself. Reloading through the debug connection has logged TradingView out before, which would also log you out of the tab you trade on.
-- After an update, check that **Show Timestamp** and the **table** are still on (settings may have reset). `learn` checks both.
+- It **can tell** when a newer version is published but not loaded yet (it asks TradingView the same way the app does).
+- It then **loads it by itself** on the levels tab (`auto_update`). This is MenthorQ's "remove and re-add" method done in the right order: it adds the new version, waits until it shows its "Last Update" time, removes the old one, and saves the layout. It never reloads TradingView, never touches other tabs, and if anything doesn't check out, it keeps the old one and falls back to a desktop reminder to click the purple ⟳.
+- A freshly added indicator starts with its **default settings** (an update does the same). The relay only keeps the new one if it shows a timestamp with those defaults. `learn` tests this on day one by adding a temporary second copy, checking it, and removing it again.
+- Tested on real TradingView with a published stand-in indicator (versions 1 → 2 → 3). TradingView doesn't show the ⟳ to the author of a script, so the icon itself couldn't be tested; the re-add method doesn't need it.
 
 ## Other settings that matter
 
